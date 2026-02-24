@@ -1,0 +1,2 @@
+bases_tratadas/*.csv filter=lfs diff=lfs merge=lfs -text
+bases_tratadas/*.html filter=lfs diff=lfs merge=lfs -text

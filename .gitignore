@@ -1,0 +1,13 @@
+# Ignorar subpastas específicas
+bases_originais/
+bkp/
+resultados/
+plots/
+modelos/
+keras_tuner/
+relatorios/
+short_predict/
+tratamento_original/
+relatorios.ipynb
+ASPO.ipynb
+RF_LSTM_UV.py
