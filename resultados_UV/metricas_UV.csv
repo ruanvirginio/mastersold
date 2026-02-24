@@ -1,0 +1,10 @@
+id,modelo,best_params,RMSE,MAPE,R2
+T21a,LGBM,"{'n_estimators': 200, 'learning_rate': 0.05, 'max_depth': -1}",0.09827983450624392,13.719805665466822,0.6477821643977391
+T21a,XGBoost,"{'n_estimators': 100, 'learning_rate': 0.1, 'max_depth': 3}",0.1022642186265971,14.334236194777874,0.6186445830084433
+T21a,GradientBoosting,"{'n_estimators': 200, 'learning_rate': 0.05, 'max_depth': 3}",0.10292808704340052,14.127043269352733,0.6136772235289022
+T22a,LGBM,"{'n_estimators': 200, 'learning_rate': 0.05, 'max_depth': -1}",0.04637204733785012,6.7589111790254774,0.3798557421480028
+T22a,XGBoost,"{'n_estimators': 100, 'learning_rate': 0.1, 'max_depth': 3}",0.04563997237349573,6.717965211791058,0.39928160438483473
+T22a,GradientBoosting,"{'n_estimators': 200, 'learning_rate': 0.05, 'max_depth': 3}",0.046955210804714126,6.82798477291798,0.36416010313479974
+T70a,LGBM,"{'n_estimators': 100, 'learning_rate': 0.1, 'max_depth': -1}",0.08019704615064696,8.181798180473042,0.18050400932470423
+T70a,XGBoost,"{'n_estimators': 200, 'learning_rate': 0.05, 'max_depth': 4}",0.07808971350805893,7.655054148850699,0.2230058531610668
+T70a,GradientBoosting,"{'n_estimators': 200, 'learning_rate': 0.05, 'max_depth': 3}",0.09093038553650576,9.537770814382828,-0.053533023027942495
