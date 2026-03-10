@@ -21,11 +21,14 @@ WEATHER_PATH = "bases_tratadas/weather_dataset_2022-2024.csv"
 
 MAPA_PLOT = {
     "T21a": "T1",
-    "T22a": "T2",
-    "T70a": "T3",
+    "T19a": "T2",
+    "T20a": "T3",
 }
 
-TRANSFORMADORES_ALVO = ['T21a', 'T22a', 'T70a']
+TRANSFORMADORES_ALVO = ['T21a', 'T19a', 'T20a']
+
+
+TRANSFORMADORES_ALVO = list(MAPA_PLOT.keys())
 
 START_DATE = "2021-01-01"
 END_VALIDATION = "2023-12-31"

@@ -1,10 +1,10 @@
 id,modelo,best_params,RMSE,MAPE,R2
+T19a,LGBM,"{'n_estimators': 200, 'learning_rate': 0.05, 'max_depth': -1}",0.11948222095024473,13.650594348937908,-0.08401893788448
+T19a,XGBoost,"{'n_estimators': 200, 'learning_rate': 0.05, 'max_depth': 4}",0.1131443700228655,12.830147046986554,0.027933014606089768
+T19a,GradientBoosting,"{'n_estimators': 100, 'learning_rate': 0.1, 'max_depth': 3}",0.11343472645043214,13.376161410354486,0.02293748449610622
+T20a,LGBM,"{'n_estimators': 100, 'learning_rate': 0.1, 'max_depth': -1}",0.11135130562830656,15.825792382735912,-0.32579915934165116
+T20a,XGBoost,"{'n_estimators': 200, 'learning_rate': 0.05, 'max_depth': 4}",0.09063519264859857,12.517799309421138,0.12162324063902197
+T20a,GradientBoosting,"{'n_estimators': 100, 'learning_rate': 0.1, 'max_depth': 3}",0.10191801289517352,14.759972213055509,-0.11068014224224854
 T21a,LGBM,"{'n_estimators': 100, 'learning_rate': 0.1, 'max_depth': -1}",0.10110889037688904,13.422677611839509,0.6272126219465018
 T21a,XGBoost,"{'n_estimators': 100, 'learning_rate': 0.1, 'max_depth': 3}",0.10454817044671727,14.576046836314843,0.6014201077204406
 T21a,GradientBoosting,"{'n_estimators': 100, 'learning_rate': 0.1, 'max_depth': 3}",0.10793002875933912,14.580970728310941,0.5752170305268982
-T22a,LGBM,"{'n_estimators': 100, 'learning_rate': 0.1, 'max_depth': -1}",0.04331297617984677,6.128765584677234,0.45897636390066987
-T22a,XGBoost,"{'n_estimators': 100, 'learning_rate': 0.1, 'max_depth': 3}",0.04191089051761602,5.833757825218406,0.4934364190880677
-T22a,GradientBoosting,"{'n_estimators': 200, 'learning_rate': 0.05, 'max_depth': 3}",0.0475639225511916,7.062121440185034,0.3475676118130384
-T70a,LGBM,"{'n_estimators': 100, 'learning_rate': 0.1, 'max_depth': -1}",0.07844034348429325,7.639549632303688,0.2160126382670824
-T70a,XGBoost,"{'n_estimators': 100, 'learning_rate': 0.1, 'max_depth': 3}",0.0733388901459567,7.255811532760019,0.3146715595085119
-T70a,GradientBoosting,"{'n_estimators': 200, 'learning_rate': 0.05, 'max_depth': 3}",0.08063861742608204,8.45561060830356,0.17145474533481464
