@@ -1,0 +1,4 @@
+transformador,nome_plot,modelo,abordagem,best_params,MAE_val,RMSE,MAE,MAPE,sMAPE,R2
+T21a,T1,Transformer_lite,Transformer,"{'d_model': 64, 'n_heads': 4, 'n_layers': 2, 'ffn_dim': 128, 'dropout_rate': 0.1}",0.0618,0.0995,0.0642,13.268,11.2816,0.6376
+T22a,T2,Transformer_lite,Transformer,"{'d_model': 64, 'n_heads': 4, 'n_layers': 2, 'ffn_dim': 128, 'dropout_rate': 0.1}",0.0316,0.04,0.0323,5.8373,5.8264,0.539
+T70a,T3,Transformer_lite,Transformer,"{'d_model': 64, 'n_heads': 4, 'n_layers': 2, 'ffn_dim': 128, 'dropout_rate': 0.1}",0.0401,0.0724,0.06,7.3203,7.4812,0.3317

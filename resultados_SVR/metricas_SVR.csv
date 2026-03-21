@@ -1,0 +1,4 @@
+transformador,nome_plot,modelo,abordagem,best_params,MAE_val,RMSE,MAE,MAPE,sMAPE,R2
+T21a,T1,SVR,SVR,"{'svr__C': 1, 'svr__epsilon': 0.1, 'svr__gamma': 'scale'}",0.0811,0.1016,0.0772,14.7484,13.7561,0.6224
+T22a,T2,SVR,SVR,"{'svr__C': 1, 'svr__epsilon': 0.1, 'svr__gamma': 'scale'}",0.0437,0.0465,0.0378,6.8938,6.7671,0.3767
+T70a,T3,SVR,SVR,"{'svr__C': 1, 'svr__epsilon': 0.1, 'svr__gamma': 'scale'}",0.0555,0.0913,0.0722,8.5032,8.9713,-0.0631
