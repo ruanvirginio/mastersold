@@ -71,7 +71,7 @@ FUTURE_END_DATE = "2027-12-31"   # 3 anos além de 2024
 PERIOD         = 365
 MAX_GAP_INTERP = 7                            # dias máximos para interpolar
 LAGS           = [1, 2, 7, 14, 30, 364]      # lag_364 ≈ mesmo dia do ano passado (quase 100% dado real no teste 2024)
-ROLLING_WINDOW = 90                           # janela de rolling menor → menos ruído
+ROLLING_WINDOW = 365                          # janela anual → captura sazonalidade completa
 STEPS          = 365                          # horizonte backtesting (1 ano)
 
 # ─────────────────────────────────────────────────────────────────────────────

@@ -38,7 +38,7 @@ random.seed(RANDOM_STATE); np.random.seed(RANDOM_STATE)
 EXOG_COLS = [
     "weekday_sin","weekday_cos","month_sin","month_cos",
     "dayofyear_sin","dayofyear_cos","is_weekend","is_holiday",
-    "trend","is_high_season",
+    "is_high_season",           # trend REMOVIDO: árvores não extrapolam além do range de treino
     "temp_max_anos","temp_min_anos","temp_media_anos","precipitacao_anos"
 ]
 

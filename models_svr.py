@@ -48,8 +48,11 @@ def construir_features_svr(y: pd.Series) -> pd.DataFrame:
     Constrói feature matrix para SVR:
     lags da série + features de calendário.
     Todos os lags são deslocamentos PASSADOS → sem lookahead.
+
+    Nota: `trend` é excluído pois SVMs/árvores não extrapolam
+    além do range de treino — usaria feature fora de distribuição no teste.
     """
-    cal = adicionar_features_calendario(y)
+    cal = adicionar_features_calendario(y).drop(columns=["trend"], errors="ignore")
     lag_df = build_lag_matrix(y, SVR_LAGS)
 
     df = lag_df.join(cal, how="left")
