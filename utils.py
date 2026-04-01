@@ -74,7 +74,15 @@ def preparar_serie_diaria(df_tr: pd.DataFrame, log_gaps: bool = True) -> pd.Seri
 
 
 def adicionar_features_calendario(serie: pd.Series) -> pd.DataFrame:
-    """Features de calendário com codificação cíclica sin/cos."""
+    """
+    Features de calendário com codificação cíclica sin/cos.
+
+    Extras para capturar padrões específicos do T3 (e outros):
+    - trend         : índice temporal contínuo (dias desde START_DATE) — captura
+                      tendências de longo prazo e crescimento estrutural de demanda.
+    - is_high_season: flag Nov/Dez — meses com picos de 20–35% num único dia,
+                      especialmente relevante para transformadores costeiros/comerciais.
+    """
     idx = serie.index
     br  = holidays.Brazil()
     df  = pd.DataFrame(index=idx)
@@ -90,6 +98,11 @@ def adicionar_features_calendario(serie: pd.Series) -> pd.DataFrame:
     df["dayofyear_cos"]  = np.cos(2*np.pi*df["dayofyear"] / 365)
     df["is_weekend"]     = (idx.weekday >= 5).astype(int)
     df["is_holiday"]     = idx.isin(br).astype(int)
+    # Tendência linear contínua — ajuda modelos a extrapolar crescimento estrutural
+    origin = pd.to_datetime(START_DATE)
+    df["trend"]          = (idx - origin).days.astype(float)
+    # Alta temporada (Nov/Dez): meses com volatilidade extrema de pico
+    df["is_high_season"] = idx.month.isin([11, 12]).astype(int)
     return df
 
 

@@ -53,7 +53,7 @@ MAPA_PLOT = {
 #   Validação → seleção de hiperparâmetros (HPT) e early stopping
 #   Teste   → avaliação final única (nunca tocado durante HPT)
 # ─────────────────────────────────────────────────────────────────────────────
-START_DATE     = "2021-01-01"
+START_DATE     = "2018-01-01"   # dados disponíveis desde 2018 → 5 anos de treino
 END_TRAIN      = "2022-12-31"
 END_VALIDATION = "2023-12-31"
 # Tudo após END_VALIDATION → conjunto de TESTE
@@ -70,7 +70,7 @@ FUTURE_END_DATE = "2027-12-31"   # 3 anos além de 2024
 # ─────────────────────────────────────────────────────────────────────────────
 PERIOD         = 365
 MAX_GAP_INTERP = 7                            # dias máximos para interpolar
-LAGS           = [1, 2, 7, 14, 30]           # lags seletivos (lags longos acumulam erro recursivo)
+LAGS           = [1, 2, 7, 14, 30, 364]      # lag_364 ≈ mesmo dia do ano passado (quase 100% dado real no teste 2024)
 ROLLING_WINDOW = 90                           # janela de rolling menor → menos ruído
 STEPS          = 365                          # horizonte backtesting (1 ano)
 
