@@ -70,8 +70,8 @@ FUTURE_END_DATE = "2027-12-31"   # 3 anos além de 2024
 # ─────────────────────────────────────────────────────────────────────────────
 PERIOD         = 365
 MAX_GAP_INTERP = 7                            # dias máximos para interpolar
-LAGS           = [1, 2, 7, 14, 30, 60, 180, 365]   # lags seletivos
-ROLLING_WINDOW = 365
+LAGS           = [1, 2, 7, 14, 30]           # lags seletivos (lags longos acumulam erro recursivo)
+ROLLING_WINDOW = 90                           # janela de rolling menor → menos ruído
 STEPS          = 365                          # horizonte backtesting (1 ano)
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -83,7 +83,7 @@ np.random.seed(RANDOM_STATE)
 # ─────────────────────────────────────────────────────────────────────────────
 # DEEP LEARNING (LSTM / CNN-LSTM)
 # ─────────────────────────────────────────────────────────────────────────────
-DL_LOOKBACK    = 365
+DL_LOOKBACK    = 60      # janela menor → mais exemplos de treino com poucos dados (~1000 pts)
 DL_HORIZON     = 1       # previsão 1-step; iterado para multi-step
 DL_EPOCHS      = 150
 DL_BATCH_SIZE  = 32
@@ -110,7 +110,7 @@ TF_FULL_DROPOUT   = 0.1
 # ─────────────────────────────────────────────────────────────────────────────
 # SVR
 # ─────────────────────────────────────────────────────────────────────────────
-SVR_LAGS = [1, 2, 7, 14, 30, 60, 180, 365]   # features de lag para SVR
+SVR_LAGS = [1, 2, 7, 14, 30]   # lags para SVR (mesmos do LAGS geral)
 
 # ─────────────────────────────────────────────────────────────────────────────
 # SARIMAX
@@ -123,6 +123,14 @@ SARIMAX_ORDERS = [
     ((1,1,2), (1,1,1,7)),
     ((2,1,2), (0,1,1,7)),
 ]
+# Features exógenas para SARIMAX — Fourier anual para capturar sazonalidade anual
+# (dayofyear_sin/cos capturam o padrão de temperatura/demanda ao longo do ano)
+SARIMAX_EXOG_COLS = ["dayofyear_sin", "dayofyear_cos", "is_holiday"]
+
+# ─────────────────────────────────────────────────────────────────────────────
+# PREVISÃO FUTURA — desabilitar para o artigo (foco em 2024 com gabarito)
+# ─────────────────────────────────────────────────────────────────────────────
+GENERATE_FUTURE_FORECAST = False
 
 os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"

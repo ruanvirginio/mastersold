@@ -41,7 +41,7 @@ except ImportError:
     from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau
     from tensorflow.keras.optimizers import Adam
 
-from sklearn.preprocessing import MinMaxScaler
+from sklearn.preprocessing import RobustScaler
 
 from config import (
     DATA_PATH, TRANSFORMADORES, MAPA_PLOT, RANDOM_STATE,

@@ -20,7 +20,8 @@ from sklearn.pipeline import Pipeline
 
 from config import (
     DATA_PATH, TRANSFORMADORES, MAPA_PLOT, RANDOM_STATE,
-    SVR_LAGS, END_TRAIN, END_VALIDATION, OUTPUT_SVR, OUTPUT_FUTURE
+    SVR_LAGS, END_TRAIN, END_VALIDATION, OUTPUT_SVR, OUTPUT_FUTURE,
+    GENERATE_FUTURE_FORECAST
 )
 from utils import (
     preparar_serie_diaria, adicionar_features_calendario,
@@ -56,33 +57,46 @@ def construir_features_svr(y: pd.Series) -> pd.DataFrame:
     return df
 
 
-def recursive_predict(model, last_known: np.ndarray, cal_future: pd.DataFrame,
-                      lags: list, steps: int) -> np.ndarray:
+def recursive_predict(model, last_known: np.ndarray, selected_features: list,
+                      cal_future: pd.DataFrame, steps: int) -> np.ndarray:
     """
     Previsão multi-step recursiva para SVR.
 
     A cada passo t:
-      1. Monta o vetor de features com lags da janela deslizante.
-      2. Prediz ŷ[t].
-      3. Acrescenta ŷ[t] ao buffer para uso como lag nos próximos passos.
+      1. Reconstrói o vetor de features NA MESMA ORDEM usada no treino do pipeline.
+      2. Features de lag: extraídas do buffer (reais + previsões anteriores).
+      3. Features de calendário: lidas de cal_future (determinísticas — sem leakage).
+      4. Acrescenta ŷ[t] ao buffer para os próximos passos.
 
-    Isso simula corretamente a previsão real: em produção, os valores futuros
-    reais não estão disponíveis. O modelo usa apenas suas próprias previsões.
+    Parâmetros
+    ----------
+    model             : pipeline (StandardScaler + SVR) já treinado
+    last_known        : array com valores históricos reais (pelo menos max_lag pontos)
+    selected_features : lista ordenada de features EXATAMENTE como treinado
+                        (e.g. ["lag_1", "lag_7", "weekday_sin", "is_holiday", ...])
+    cal_future        : DataFrame indexado por data com colunas de calendário
+    steps             : número de passos a prever
     """
-    max_lag = max(lags)
-    # Buffer: mantém os últimos max_lag valores (reais + previstos iterativamente)
-    buffer  = list(last_known[-max_lag:])
-    preds   = []
-
-    cal_cols = [c for c in cal_future.columns]
+    lag_nums = [int(f.split("_")[1]) for f in selected_features if f.startswith("lag_")]
+    max_lag  = max(lag_nums) if lag_nums else 1
+    buffer   = list(last_known[-max_lag:])
+    preds    = []
 
     for step in range(steps):
-        lag_feats = [buffer[-lag] for lag in lags]
-        cal_feats = cal_future.iloc[step].values.tolist() if step < len(cal_future) else [0]*len(cal_cols)
-        x = np.array(lag_feats + cal_feats).reshape(1, -1)
+        row = []
+        for feat in selected_features:
+            if feat.startswith("lag_"):
+                lag_n = int(feat.split("_")[1])
+                row.append(buffer[-lag_n])
+            else:
+                if step < len(cal_future) and feat in cal_future.columns:
+                    row.append(float(cal_future.iloc[step][feat]))
+                else:
+                    row.append(0.0)
+        x    = np.array(row, dtype=np.float64).reshape(1, -1)
         yhat = model.predict(x)[0]
         preds.append(yhat)
-        buffer.append(yhat)   # alimenta o buffer com a previsão (não com valor real)
+        buffer.append(yhat)   # alimenta com previsão, NUNCA com valor real futuro
 
     return np.array(preds)
 
@@ -147,15 +161,14 @@ def treinar_svr(df: pd.DataFrame) -> pd.DataFrame:
         pipe_final.set_params(**best_params)
         pipe_final.fit(X_tv, y_tv)
 
-        # Previsão de TESTE: recursive (sem ver valores reais futuros)
+        # Previsão de TESTE: recursiva — nunca usa valores reais futuros como lags
+        # Correção do bug: substituído predict() direto por recursive_predict()
         y_hist_tv = y.loc[y.index <= v_end].values
-        cal_test  = adicionar_features_calendario(y.loc[idx_te])
-        # Reordenar cal para incluir apenas colunas de features selecionadas (não-lag)
-        cal_cols_sel = [f for f in selected if not f.startswith("lag_")]
+        cal_test_full = adicionar_features_calendario(y.loc[idx_te])
 
-        # Usar predict recursivo apenas nos lags; para features de calendário usar valores reais
-        # (calendário é determinístico — não há leakage em usá-lo no futuro)
-        pred_test = pipe_final.predict(X_te_s)   # direto: usa lags reais do passado
+        pred_test = recursive_predict(
+            pipe_final, y_hist_tv, selected, cal_test_full, len(idx_te)
+        )
 
         y_true_test = pd.Series(y_te, index=idx_te)
         y_pred_test = pd.Series(pred_test, index=idx_te)
@@ -167,42 +180,40 @@ def treinar_svr(df: pd.DataFrame) -> pd.DataFrame:
         plot_forecast_3way(y, pred_val_plot, y_pred_test, tid, "SVR", OUTPUT_SVR)
         plot_residuals(y_true_test, y_pred_test, tid, "SVR", OUTPUT_SVR)
 
-        # ── Previsão futura ───────────────────────────────────────────────
-        try:
-            from config import FUTURE_END_DATE
-            future_idx = pd.date_range(y.index[-1]+pd.Timedelta(days=1),
-                                       pd.to_datetime(FUTURE_END_DATE), freq="D")
-            cal_fut    = adicionar_features_calendario(pd.Series(np.nan, index=future_idx))
-            cal_fut_sel = cal_fut[[c for c in cal_cols_sel if c in cal_fut.columns]]
+        # ── Previsão futura (desabilitada: foco no gabarito 2024) ─────────
+        if GENERATE_FUTURE_FORECAST:
+            try:
+                from config import FUTURE_END_DATE
+                future_idx = pd.date_range(y.index[-1]+pd.Timedelta(days=1),
+                                           pd.to_datetime(FUTURE_END_DATE), freq="D")
+                cal_fut = adicionar_features_calendario(pd.Series(np.nan, index=future_idx))
 
-            # Retreinar em todos os dados
-            X_all_s  = X_all[:, sel_idx]
-            pipe_fut = Pipeline([("scaler", StandardScaler()),
-                                 ("svr", SVR(kernel="rbf"))])
-            pipe_fut.set_params(**best_params)
-            pipe_fut.fit(X_all_s, y_all)
+                X_all_s  = X_all[:, sel_idx]
+                pipe_fut = Pipeline([("scaler", StandardScaler()),
+                                     ("svr", SVR(kernel="rbf"))])
+                pipe_fut.set_params(**best_params)
+                pipe_fut.fit(X_all_s, y_all)
 
-            preds_fut = recursive_predict(
-                pipe_fut, y.values, cal_fut_sel, SVR_LAGS, len(future_idx)
-            )
-            fut_series = pd.Series(preds_fut, index=future_idx)
+                preds_fut = recursive_predict(
+                    pipe_fut, y.values, selected, cal_fut, len(future_idx)
+                )
+                fut_series = pd.Series(preds_fut, index=future_idx)
 
-            # Bootstrap IC
-            resids = y_all - pipe_fut.predict(X_all_s)
-            rng    = np.random.default_rng(RANDOM_STATE)
-            boots  = [preds_fut + rng.choice(resids, size=len(future_idx), replace=True)
-                      for _ in range(200)]
-            boots  = np.array(boots)
-            plot_future_forecast(y, fut_series,
-                                 pd.Series(np.percentile(boots, 2.5,  axis=0), index=future_idx),
-                                 pd.Series(np.percentile(boots, 97.5, axis=0), index=future_idx),
-                                 tid, "SVR", OUTPUT_FUTURE)
-            pd.DataFrame({"data": future_idx, "prev_mean": preds_fut,
-                          "ic_lower_95": np.percentile(boots,2.5,axis=0),
-                          "ic_upper_95": np.percentile(boots,97.5,axis=0)
-                         }).to_csv(f"{OUTPUT_FUTURE}/futuro_{tid}_SVR.csv", index=False)
-        except Exception as e:
-            log.warning(f"Previsão futura SVR falhou: {e}")
+                resids = y_all - pipe_fut.predict(X_all_s)
+                rng    = np.random.default_rng(RANDOM_STATE)
+                boots  = [preds_fut + rng.choice(resids, size=len(future_idx), replace=True)
+                          for _ in range(200)]
+                boots  = np.array(boots)
+                plot_future_forecast(y, fut_series,
+                                     pd.Series(np.percentile(boots, 2.5,  axis=0), index=future_idx),
+                                     pd.Series(np.percentile(boots, 97.5, axis=0), index=future_idx),
+                                     tid, "SVR", OUTPUT_FUTURE)
+                pd.DataFrame({"data": future_idx, "prev_mean": preds_fut,
+                              "ic_lower_95": np.percentile(boots,2.5,axis=0),
+                              "ic_upper_95": np.percentile(boots,97.5,axis=0)
+                             }).to_csv(f"{OUTPUT_FUTURE}/futuro_{tid}_SVR.csv", index=False)
+            except Exception as e:
+                log.warning(f"Previsão futura SVR falhou: {e}")
 
         resultados.append({
             "transformador": tid, "nome_plot": MAPA_PLOT.get(tid,tid),
