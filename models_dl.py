@@ -131,7 +131,8 @@ def preparar_dados_dl(df_tr, weather=None):
         X_vl=Xw[m_vl], y_vl=yw[m_vl],
         X_te=Xw[m_te], y_te=yw[m_te],
         idx_te=idx_w[m_te],
-        sc_y=sc_y, y_series=y,
+        sc_y=sc_y, sc_X=sc_X,   # sc_X adicionado para previsão futura sem re-fit
+        y_series=y,
         n_feat=Xw.shape[2],
         X_all=Xw, y_all=yw, idx_all=idx_w,
         X_raw_fut_base=X_sc,   # para previsão futura
@@ -281,9 +282,14 @@ def treinar_dl(df: pd.DataFrame, weather=None) -> pd.DataFrame:
             y_tv = np.concatenate([data["y_tr"], data["y_vl"]])
 
             model_final = build_fn(data["n_feat"], **best_params)
+            # ── CORREÇÃO: Early stopping monitora VAL (X_vl), NUNCA o teste ──
+            # Usar X_vl como monitor de early stopping ao retreinar em treino+val
+            # é aceitável pois o ES apenas controla quando parar, não seleciona
+            # hiperparâmetros (esses já foram selecionados na etapa de HPT).
+            # Alternativa mais conservadora: treinar por épocas fixas (sem ES).
             history = model_final.fit(
                 X_tv, y_tv,
-                validation_data=(data["X_te"], data["y_te"]),
+                validation_data=(data["X_vl"], data["y_vl"]),
                 epochs=DL_EPOCHS, batch_size=DL_BATCH_SIZE,
                 callbacks=get_callbacks(), verbose=0
             )
@@ -338,11 +344,17 @@ def treinar_dl(df: pd.DataFrame, weather=None) -> pd.DataFrame:
                             cal_fut[col] = clim_mean[col]
                 feat_fut_cols = [c for c in data["feat_cols"] if c in cal_fut.columns]
 
-                # Normalizar com scaler do treino
-                from sklearn.preprocessing import MinMaxScaler
-                # Reconstruir scaler de X (fitado no treino)
-                sc_X_ref = MinMaxScaler()
-                sc_X_ref.fit(data["X_all"][:sum(data["idx_all"] <= pd.to_datetime(END_TRAIN))].reshape(-1, data["n_feat"]))
+                # Normalizar com sc_X já fitado no treino (salvo em preparar_dados_dl)
+                # CORREÇÃO: X_all é 3D (janelas), não pode ser usado para refit do scaler.
+                # sc_X foi fitado apenas no treino — reutilizamos diretamente.
+                sc_X_ref = data.get("sc_X")
+                if sc_X_ref is None:
+                    # fallback: recriar fitando nos primeiros dados (apenas treino)
+                    from sklearn.preprocessing import MinMaxScaler
+                    n_tr = sum(data["idx_all"] <= pd.to_datetime(END_TRAIN))
+                    # X_all[0] tem shape (lookback, n_feat); pegar o último timestep de cada janela
+                    X2d = data["X_all"][:n_tr, -1, :]   # (n_tr, n_feat)
+                    sc_X_ref = MinMaxScaler().fit(X2d)
 
                 fut_raw = np.zeros((len(future_idx), data["n_feat"]))
                 for i, col in enumerate(feat_fut_cols[:data["n_feat"]]):

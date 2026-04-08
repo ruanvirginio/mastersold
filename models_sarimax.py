@@ -47,12 +47,29 @@ def treinar_sarimax(df: pd.DataFrame) -> pd.DataFrame:
         y_test  = y.loc[splits["test"]]
         y_tv    = pd.concat([y_train, y_val])
 
+        # ── Exógenas de calendário (capturam sazonalidade anual que s=7 não captura)
+        # JUSTIFICATIVA: SARIMAX com s=7 captura padrão semanal. Para capturar
+        # sazonalidade anual (s=365 é computacionalmente inviável), adicionamos
+        # regressores de calendário cíclicos como variáveis exógenas.
+        # Referência: Hyndman & Athanasopoulos (2021), Forecasting: P&P, Seção 10.1
+        cal_full = adicionar_features_calendario(y)
+        exog_cols_sarimax = ["dayofyear_sin", "dayofyear_cos",
+                             "month_sin", "month_cos",
+                             "weekday_sin", "weekday_cos",
+                             "is_weekend", "is_holiday"]
+        exog_full  = cal_full[exog_cols_sarimax]
+        exog_train = exog_full.loc[splits["train"]]
+        exog_val   = exog_full.loc[splits["val"]]
+        exog_test  = exog_full.loc[splits["test"]]
+        exog_tv    = exog_full.loc[y_tv.index]
+
         # ── HPT: seleciona ordem pelo AIC no TREINO ───────────────────────
         best_aic, best_order, best_sorder = np.inf, None, None
 
         for order, sorder in SARIMAX_ORDERS:
             try:
-                model = SARIMAX(y_train, order=order, seasonal_order=sorder,
+                model = SARIMAX(y_train, exog=exog_train,
+                                order=order, seasonal_order=sorder,
                                 enforce_stationarity=False,
                                 enforce_invertibility=False)
                 result = model.fit(disp=False, maxiter=200)
@@ -72,10 +89,11 @@ def treinar_sarimax(df: pd.DataFrame) -> pd.DataFrame:
 
         # ── Validação (para plot) ─────────────────────────────────────────
         try:
-            m_val = SARIMAX(y_train, order=best_order, seasonal_order=best_sorder,
+            m_val = SARIMAX(y_train, exog=exog_train,
+                            order=best_order, seasonal_order=best_sorder,
                             enforce_stationarity=False, enforce_invertibility=False)
             r_val = m_val.fit(disp=False, maxiter=200)
-            pred_val = r_val.forecast(steps=len(y_val))
+            pred_val = r_val.forecast(steps=len(y_val), exog=exog_val)
             pred_val.index = y_val.index
         except Exception as e:
             log.warning(f"  Previsão de validação falhou: {e}")
@@ -83,10 +101,11 @@ def treinar_sarimax(df: pd.DataFrame) -> pd.DataFrame:
 
         # ── Retreinar em TREINO+VAL, avaliar TESTE ────────────────────────
         try:
-            m_tv = SARIMAX(y_tv, order=best_order, seasonal_order=best_sorder,
+            m_tv = SARIMAX(y_tv, exog=exog_tv,
+                           order=best_order, seasonal_order=best_sorder,
                            enforce_stationarity=False, enforce_invertibility=False)
             r_tv = m_tv.fit(disp=False, maxiter=200)
-            pred_test = r_tv.forecast(steps=len(y_test))
+            pred_test = r_tv.forecast(steps=len(y_test), exog=exog_test)
             pred_test.index = y_test.index
         except Exception as e:
             log.error(f"  Previsão de teste falhou: {e}")
@@ -114,10 +133,15 @@ def treinar_sarimax(df: pd.DataFrame) -> pd.DataFrame:
             from config import FUTURE_END_DATE
             future_idx = pd.date_range(y.index[-1]+pd.Timedelta(days=1),
                                        pd.to_datetime(FUTURE_END_DATE), freq="D")
-            m_full = SARIMAX(y, order=best_order, seasonal_order=best_sorder,
+            exog_future = adicionar_features_calendario(
+                pd.Series(np.nan, index=future_idx)
+            )[exog_cols_sarimax]
+
+            m_full = SARIMAX(y, exog=exog_full,
+                             order=best_order, seasonal_order=best_sorder,
                              enforce_stationarity=False, enforce_invertibility=False)
             r_full = m_full.fit(disp=False, maxiter=200)
-            fc_obj = r_full.get_forecast(steps=len(future_idx))
+            fc_obj = r_full.get_forecast(steps=len(future_idx), exog=exog_future)
             pred_fut   = fc_obj.predicted_mean
             pred_fut.index = future_idx
             ci         = fc_obj.conf_int(alpha=0.05)

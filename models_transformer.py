@@ -288,9 +288,10 @@ def treinar_transformer(df: pd.DataFrame, weather=None, mode: str = "full") -> p
         X_tv = np.vstack([data["X_tr"], data["X_vl"]])
         y_tv = np.concatenate([data["y_tr"], data["y_vl"]])
         model_final = build_transformer(DL_LOOKBACK, data["n_feat"], **best_params)
+        # ── CORREÇÃO: Early stopping monitora VAL (X_vl), NUNCA o teste ──
         history = model_final.fit(
             X_tv, y_tv,
-            validation_data=(data["X_te"], data["y_te"]),
+            validation_data=(data["X_vl"], data["y_vl"]),
             epochs=DL_EPOCHS, batch_size=DL_BATCH_SIZE,
             callbacks=get_callbacks(), verbose=0
         )

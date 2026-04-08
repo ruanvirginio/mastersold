@@ -1,0 +1,918 @@
+%%%%%%%%%%%%%%%%%%%%%%% file template.tex %%%%%%%%%%%%%%%%%%%%%%%%%
+%
+% This is a general template file for the LaTeX package SVJour3
+% for Springer journals.          Springer Heidelberg 2010/09/16
+%
+% Copy it to a new file with a new name and use it as the basis
+% for your article. Delete % signs as needed.
+%
+% This template includes a few options for different layouts and
+% content for various journals. Please consult a previous issue of
+% your journal as needed.
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%
+% First comes an example EPS file -- just ignore it and
+% proceed on the \documentclass line
+% your LaTeX will extract the file if required
+% \begin{filecontents*}{example.eps}
+% %!PS-Adobe-3.0 EPSF-3.0
+% %%BoundingBox: 19 19 221 221
+% %%CreationDate: Mon Sep 29 1997
+% %%Creator: programmed by hand (JK)
+% %%EndComments
+% gsave
+% newpath
+%   20 20 moveto
+%   20 220 lineto
+%   220 220 lineto
+%   220 20 lineto
+% closepath
+% 2 setlinewidth
+% gsave
+%   .4 setgray fill
+% grestore
+% stroke
+% grestore
+% \end{filecontents*}
+%
+\RequirePackage{fix-cm}
+%
+%\documentclass{svjour3}                     % onecolumn (standard format)
+%\documentclass[smallcondensed]{svjour3}     % onecolumn (ditto)
+% \documentclass[smallextended]{svjour3}       % onecolumn (second format)
+\documentclass[twocolumn]{svjour3}          % twocolumn
+%
+\smartqed  % flush right qed marks, e.g. at end of proof
+%
+\usepackage{graphicx}
+\usepackage[numbers,sort&compress]{natbib}
+\usepackage{rotating}
+\usepackage{booktabs}
+\usepackage[table,xcdraw]{xcolor}
+\usepackage{array}
+\usepackage{adjustbox}
+\usepackage{subcaption}
+\usepackage{svg}
+\usepackage{multirow, array}
+% \renewcommand{\tabularxcolumn}[1]{m{#1}} % centralização vertical nas colunas X
+
+
+%
+% \usepackage{mathptmx}      % use Times fonts if available on your TeX system
+%
+% insert here the call for the packages your document requires
+%\usepackage{latexsym}
+% etc.
+%
+% please place your own definitions here and don't use \def but
+% \newcommand{}{}
+%
+% Insert the name of "your journal" with
+% TODO: descomente e preencha com o nome da revista alvo
+% \journalname{Electric Power Systems Research}
+%
+\begin{document}
+
+\title{Energy demand in electrical substations: An approach using time series forecasting%\thanks{Grants or other notes
+%about the article that should go on the front page should be
+%placed here. General acknowledgments should be placed at the end of the article.}
+}
+% \subtitle{Do you have a subtitle?\\ If so, write it here}
+
+%\titlerunning{Short form of title}        % if too long for running head
+
+\author{Ruan Carlos Virginio dos Santos         \and
+        Diego Ernesto Rosa Pessoa \and Thiago José Marques Moura%etc.
+}
+
+%\authorrunning{Short form of author list} % if too long for running head
+
+% TODO: preencher endereços, telefones e e-mails institucionais reais
+\institute{Ruan Carlos Virginio dos Santos \at
+              \email{TODO@institution.br}
+           \and
+           Diego Ernesto Rosa Pessoa \at
+              \email{TODO@institution.br}
+           \and
+           Thiago Jos\'{e} Marques Moura \at
+              \email{TODO@institution.br}
+}
+
+\date{Received: date / Accepted: date}
+% The correct dates will be entered by the editor
+
+
+\maketitle
+
+\begin{abstract}
+Accurate medium-term load forecasting at the distribution level is increasingly critical due to demand growth, weather sensitivity, and regulatory constraints on service continuity. This study investigates the statistical behavior and 365-day-ahead forecasting of daily peak apparent power ($S_{\max}$) at transformer level in João Pessoa, Brazil, using real operational data from three substations with heterogeneous consumer profiles. A two-stage framework compares univariate recursive models based solely on historical load with multivariate models incorporating calendar and meteorological variables, implemented through gradient-boosting regressors (LightGBM, XGBoost, and Gradient Boosting Regressor). Experiments follow a strict three-way chronological split (training: 2021--2022; validation: 2023; test: 2024), ensuring that hyperparameter selection never accesses test data. Results indicate strong annual and weekly seasonality across all transformers, with univariate models already achieving stable long-horizon forecasts. The inclusion of exogenous variables yields measurable improvements in weather-sensitive substations (up to 8.2\% RMSE reduction), while offering limited or even marginal gains in units dominated by intrinsic autoregressive dynamics. The findings demonstrate that forecasting performance is transformer-dependent and provide practical guidance on when multivariate complexity delivers operational value in distribution networks.
+
+\keywords{Load forecasting \and Distribution substations \and Time series \and Machine learning \and Gradient boosting \and Apparent power}
+\end{abstract}
+
+
+
+\section{Introduction}
+\label{intro}
+
+In recent decades, global electricity demand has shown a sustained upward trend, driven by population growth, industrial expansion, electrification of transport, and the increasing digitalization of society \cite{IEA2025GlobalEnergyReview, McMillan2019}. The fast expansion of digital services and large-scale data centers, coupled with climatic conditions, has further intensified electricity consumption, particularly in tropical countries such as Brazil. Elevated temperatures systematically increase cooling demand—including fans and air-conditioning systems, amplifying peak loads and reinforcing stress on distribution infrastructure \cite{Goel2024, Ewim2023, Colelli2023, Bezerra2021}.
+
+At the local scale, demographic and economic dynamics can amplify these effects. João Pessoa, a city in the northeast region of Brazil, has experienced above-average population growth and real estate expansion compared with national trends, contributing to increased urbanization, commercial activity, and higher electricity demand \cite{UNIAO2025Imoveis,FipeZAP2025JoaoPessoa}. These characteristics make the city a representative and challenging case study for investigating demand behavior and planning issues in fast expanding urban distribution systems.
+
+Beyond demand growth, distribution networks are becoming increasingly dynamic due to localized variability, stronger weather dependence, and the gradual integration of distributed energy resources. These factors introduce additional operational uncertainty and reinforce the need for accurate short- and medium-term load forecasting to support planning, reliability, and resource allocation.
+
+In Brazil, these technical challenges are reinforced by regulatory requirements established by the Brazilian Electricity Regulatory Agency (ANEEL), which defines service quality standards and continuity indicators for distribution utilities. When limits on interruption duration or frequency are exceeded, companies must financially compensate affected consumers. Recent national reports indicate that compensation costs for violations of individual continuity indicators reached R\$~1.1 billion in 2024 \cite{aneel_compensacoes_continuidade}, highlighting the tangible economic impact of service interruptions and operational inefficiencies. This regulatory context directly links forecasting accuracy and operational planning to financial risk.
+
+Consequently, accurate substation-level load forecasting has become a critical tool for distribution utilities, enabling improved reliability, optimized resource allocation, and reduced operational costs \cite{AHMAD2022112128}. However, most forecasting studies in Brazil focus on the transmission level \cite{Aquila2023}, where aggregated demand profiles tend to be smoother and easier to predict. In contrast, distribution substations exhibit higher variability, stronger local effects, and greater sensitivity to weather and calendar conditions. In recent literature, few studies investigate transformer-level forecasting using real operational data from Brazilian distribution systems.
+
+To address these challenges, this work investigates the statistical behavior and forecasting of electricity demand at the substation level in João Pessoa. In this context, the study is guided by the following research questions: 
+(1) What is the statistical behavior of energy demand at the substation level? 
+(2) Is it possible to accurately forecast load demand using only historical consumption data? 
+(3) How does the forecasting accuracy of machine learning models vary according to the operational and geographical characteristics of substations? 
+and (4) Can the inclusion of exogenous variables, such as weather conditions and calendar effects, improve predictive performance?
+
+Methodologically, the study begins with an exploratory data analysis to characterize trends, seasonality, and variability patterns. Baseline univariate models are first evaluated using only historical load data, followed by multivariate approaches that incorporate weather and calendar features. In the multivariate configuration, a formal feature selection step is performed on the training set prior to hyperparameter tuning, ensuring leakage-free identification of the most informative predictors. Multiple machine learning algorithms are systematically compared to assess their robustness and generalization across substations with distinct operational profiles.
+
+The main contributions of this work are a detailed statistical characterization of transformer-level demand behavior in an urban Brazilian distribution system; the establishment of univariate and multivariate forecasting baselines for substation-level load prediction in João Pessoa; a leakage-free feature selection procedure that identifies the most predictive exogenous variables using exclusively the training set; a systematic comparison of machine learning models across substations with heterogeneous operational and geographical profiles; and an empirical evaluation of the impact of selected exogenous variables on predictive accuracy, providing practical insights for feature engineering in distribution-level forecasting.
+
+By leveraging real operational data from an underexplored context, this study provides both scientific and practical contributions, supporting improved distribution network planning, enhanced reliability, and data-driven investment decisions.
+
+This paper is organized as follows. Section~\ref{sec:1} reviews the literature and theoretical foundations. Section~\ref{sec:methodology} describes the methodology, datasets, and experimental protocol. Section~\ref{sec:results} presents the forecasting results and visual comparisons. Section~\ref{sec:discussion} discusses the findings and limitations. Section~\ref{sec:conclusion} concludes with directions for future research.
+
+\section{Background and related works}
+\label{sec:1}
+
+This section reviews the theoretical and methodological foundations that support substation-level load forecasting. It first contextualizes the operational role of distribution substations within the Brazilian power system and then discusses the statistical properties of electrical load time series and the forecasting approaches commonly adopted in the literature, including both statistical and machine learning paradigms.
+
+\subsection{Distribution Systems and Substation-Level Demand}
+
+Electrical power systems are traditionally organized into generation, transmission, and distribution stages. After long-distance high-voltage transport, electricity is stepped down at distribution substations and delivered to end users through local feeders. Within each substation, power transformers constitute the critical interface between the transmission network and the distribution grid, converting voltage levels and directly supplying downstream feeders.
+
+From a measurement and operational perspective, these transformers represent the fundamental units of analysis for distribution-level planning. The apparent power flowing through each transformer reflects the aggregated demand of heterogeneous consumers—residential, commercial, and industrial—within a defined geographical area. Consequently, transformer-level measurements provide a direct and operationally meaningful representation of localized demand behavior.
+
+Such aggregation at the transformer level leads to load profiles that are more volatile and locally influenced than those observed at higher network levels. Variations in customer composition, urban density, and socioeconomic activity introduce heterogeneous temporal dynamics, resulting in demand signals that differ substantially across transformers, even within the same substation. As a result, forecasting performance may vary according to the operational and geographical characteristics of each transformer, making transformer-level prediction a particularly challenging task.
+
+In Brazil, electricity services are regulated by ANEEL, which establishes reliability and power quality standards. Utilities must comply with continuity indicators and develop annual expansion and investment plans. Since transformer loading directly affects service continuity, asset lifespan, and overload risk, reliable short- and medium-term forecasts at the transformer level are not only operational tools but also regulatory and financial requirements for distribution companies.
+
+
+\subsection{Statistical Properties of Electrical Load Time Series}
+
+Electrical load time series exhibit distinctive statistical characteristics that complicate predictive modeling. Typical patterns include long-term trends, multiple seasonalities (daily, weekly, and annual), strong autocorrelation, and abrupt fluctuations caused by behavioral and operational changes. These properties often lead to nonstationary and heteroscedastic signals, violating assumptions commonly adopted by classical linear models.
+
+In addition to intrinsic temporal dependencies, electricity demand is influenced by exogenous drivers such as temperature, precipitation, and calendar effects including weekdays, weekends, and holidays. These external factors introduce nonlinear and context-dependent relationships that cannot be fully captured using historical load values alone. As a result, purely univariate approaches may be insufficient to explain sudden variations or atypical consumption patterns.
+
+Understanding these statistical properties is therefore essential for selecting appropriate forecasting strategies, defining baseline models, and motivating the incorporation of additional explanatory variables and more flexible nonlinear learning algorithms.
+
+\subsection{Load Forecasting Methods}
+
+Load forecasting has historically relied on statistical time-series models that use only past observations of the target variable. Classical approaches such as Exponential Smoothing and Autoregressive Integrated Moving Average (ARIMA), including its seasonal extension (SARIMA), remain widely adopted due to their interpretability and solid theoretical foundations. These methods are effective for capturing linear trends and seasonal components and are commonly employed as reference baselines in operational environments.
+
+However, the assumptions of linearity and stationarity inherent to many statistical models limit their applicability to distribution-level demand, where consumption patterns are often irregular and influenced by multiple external factors. These limitations have motivated the increasing adoption of data-driven techniques capable of modeling nonlinear relationships and integrating heterogeneous inputs.
+
+Machine learning methods have therefore gained prominence in recent years. Tree-based ensemble models, such as Random Forests and gradient boosting techniques including XGBoost and LightGBM, have demonstrated strong performance due to their ability to capture complex interactions, handle mixed-type features, and provide robust generalization with limited preprocessing. Similarly, neural network architectures—particularly recurrent models such as Long Short-Term Memory (LSTM) networks—are well-suited for sequential data, as they explicitly model temporal dependencies and long-range correlations.
+
+These approaches can be applied either in a univariate setting, where only historical load is considered, or in a multivariate framework that incorporates exogenous variables such as weather and calendar information. Comparative evaluation between these configurations enables the assessment of the incremental predictive value provided by additional contextual features.
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Related works}
+
+Load forecasting has been extensively investigated in the literature, particularly at national and transmission levels where highly aggregated demand exhibits smoother dynamics and greater predictability. In these contexts, classical statistical approaches such as ARIMA and SARIMA remain competitive due to their simplicity and interpretability. However, their reliance on stationarity and linearity assumptions limits their ability to represent the nonlinear and highly variable behavior typically observed in distribution systems \cite{Matsila2018}.
+
+To overcome these limitations, machine learning techniques have been increasingly adopted. Kernel-based methods such as Support Vector Regression (SVR) and ensemble learners including Random Forest Regression (RFR) have demonstrated improved robustness to noise and the ability to capture nonlinear interactions between predictors. Deep learning models, particularly Long Short-Term Memory (LSTM) networks, further extend this capability by explicitly modeling temporal dependencies through recurrent structures. These approaches have been successfully applied in different geographical contexts, often outperforming classical baselines in both short- and medium-term forecasting tasks \cite{Aquila2023, DosSantos2024, Dong2019, Alsalem2025}.
+
+More recent studies explore advanced architectures and hybrid strategies to further enhance predictive performance. Convolutional and recurrent neural networks have been combined to extract both local and long-term temporal patterns from energy data \cite{Maleki2024}. Hybrid frameworks that integrate statistical decomposition or clustering with machine learning—such as STL-LSTM-XGBoost or fuzzy clustering combined with neural networks—have also been proposed to separately model trend, seasonal, and residual components before learning nonlinear relationships \cite{Zhang2023, Hussein2024, Alsalem2025}. These approaches typically report improved accuracy and stability compared with standalone models.
+
+Several works have specifically investigated distribution-level or feeder-level forecasting. For example, \cite{Dong2019} applied LSTM networks incorporating socioeconomic and meteorological features for long-term feeder prediction in Canada, while \cite{Yaprakdal2023} evaluated feature selection strategies combined with Bi-LSTM and attention mechanisms for mid-term forecasting. Comparative analyses between recurrent architectures such as LSTM and GRU have also highlighted trade-offs between predictive accuracy and computational efficiency \cite{Becker2024}. These studies confirm the benefits of deep learning and multivariate inputs when modeling localized demand. A summary of the aforementioned studies and their results can be seen in Table~\ref{tab:lit_comparison}.
+
+Despite these advances, transformer- and substation-level forecasting remains comparatively underexplored, particularly in developing countries and tropical regions where demand is strongly influenced by weather variability and fast urban growth. Moreover, systematic comparisons between univariate baselines and multivariate machine learning models, as well as evaluations of model generalization across substations with heterogeneous operational profiles, are still limited. This gap motivates comprehensive empirical investigations that combine detailed statistical characterization with modern ensemble and recurrent learning techniques for distribution-level demand prediction.
+
+\begin{table*}[p]
+\centering
+\footnotesize
+\small
+\caption{Summary of Selected Load Forecasting Studies}
+\label{tab:lit_comparison}
+
+\rotatebox{90}{%
+\begin{adjustbox}{width=\textheight}
+\begin{tabular}{p{3cm} p{5cm} p{4.5cm} p{6cm}}
+\toprule
+\textbf{Article} & \textbf{Data Used} & \textbf{Trained Algorithms} & \textbf{Summary of Results} \\
+\midrule
+
+\cite{Yaprakdal2023} &
+Electricity load data from Australia; 30-day horizon; multivariate time series with feature engineering. &
+LSTM, Bi-LSTM, Attention-LSTM; RFECV + LIME for XAI. &
+Bi-LSTM and Attention-LSTM achieved the best accuracy. Hybrid feature selection improved performance. LIME added interpretability. \\
+
+\cite{Dong2019} &
+Data from a Canadian utility company; long-term forecasting (1--10 years); multivariate features such as population growth and peak temperature. &
+Long Short-Term Memory (LSTM) Network. &
+The LSTM model proved effective for long-term load forecasting, especially in saturated feeders with predominantly residential loads. The study emphasized the role of feature selection and dataset preparation. \\
+
+\cite{Becker2024} &
+European utility data; substation-scale; time window not explicitly defined. &
+LSTM, GRU, XGBoost, Prophet. &
+LSTM and GRU produced the best forecasts. XGBoost performed well with fewer inputs, while Prophet showed lower accuracy. \\
+
+\cite{Ma2024} &
+Distribution grid data from China; historical load, temperature, and calendar features; hourly resolution. &
+ML-based algorithm; tested with different neural network depths; wavelet denoising and gradient descent. &
+Best results with a 4-layer network. Demonstrated good forecasting performance and highlighted the importance of preprocessing and input selection. \\
+
+\cite{Zhang2023} &
+Transformer load data from China; short-term forecasting; daily curves clustered from multiple transformers. &
+STL + LSTM + XGBoost hybrid model; K-means++ clustering. &
+The hybrid model improved accuracy over other methods through decomposition and ensemble forecasting. \\
+
+\cite{Hussein2024} &
+Electricity data from Tulkarm, Palestine; 3-year dataset (2018--2020); half-hour resolution. &
+NARX-GA, RNN-GA, NARX-GA + K-means clustering. &
+NARX-GA with K-means achieved the lowest RMSE. Hybridization improved accuracy and robustness, especially for long-term forecasting. \\
+
+\cite{Alsalem2025} &
+52,417 records from Tetouan, Morocco; data from three power networks. &
+Random Forest, SVM, KNN, XGBoost, MLP, all combined with fuzzy C-means clustering. &
+MLP with fuzzy clustering achieved the best performance. Fuzzy clustering enhanced feature extraction and robustness. \\
+
+\cite{DosSantos2024} &
+Active power measurements from a high-consumption unit (Federal University) from 2017 to 2024. &
+Long Short-Term Memory (LSTM) Network. &
+Results confirmed consistency with measured and billed data but struggled with unseen events such as class suspensions. \\
+
+\cite{Aquila2023} &
+Literature review on Brazilian and international STLF; no raw dataset used. &
+SVM, ANN, ARIMA, hybrid approaches. &
+Overview of modeling strategies. Highlights the DESSEM model in Brazil and emphasizes hybrid and nonlinear methods for accurate STLF. \\
+
+\bottomrule
+\end{tabular}
+\end{adjustbox}
+}
+
+\end{table*}
+
+Overall, the reviewed literature confirms the predictive capability of statistical, machine learning, and hybrid methods across multiple forecasting horizons and geographical contexts. Nevertheless, research remains predominantly concentrated at the transmission level or on large individual consumers. Transformer- and substation-level forecasting within distribution networks is still insufficiently investigated, especially in Brazil, where localized demand heterogeneity and climate sensitivity substantially increase modeling complexity.
+
+
+\subsection{Contribution of this Work}
+
+This study advances transformer-level forecasting in a Brazilian urban distribution context by combining structured autoregressive modeling with a controlled evaluation of exogenous predictors. Rather than focusing solely on algorithmic comparison, the analysis emphasizes how local demand composition influences the marginal benefit of contextual information.
+
+By systematically contrasting univariate and multivariate recursive settings under identical experimental conditions, the work clarifies when additional predictors meaningfully enhance predictive performance and when they merely increase model complexity without substantive gain. The findings therefore contribute not only to forecasting accuracy assessment but also to model selection strategy in heterogeneous distribution networks.
+
+\subsection{Performance Metrics}
+The predictive accuracy of the models was assessed using four complementary statistical metrics: Root Mean Squared Error (RMSE), Mean Absolute Error (MAE), Symmetric Mean Absolute Percentage Error (sMAPE), and the Coefficient of Determination ($R^2$). These are defined as follows:
+
+\begin{equation}
+RMSE = \sqrt{\frac{1}{N} \sum_{i=1}^{N} (y_i - \hat{y}_i)^2}
+\end{equation}
+
+\begin{equation}
+MAE = \frac{1}{N} \sum_{i=1}^{N} \left| y_i - \hat{y}_i \right|
+\end{equation}
+
+\begin{equation}
+sMAPE = \frac{100}{N} \sum_{i=1}^{N} \frac{2\left| y_i - \hat{y}_i \right|}{|y_i| + |\hat{y}_i|}
+\end{equation}
+
+\begin{equation}
+R^2 = 1 - \frac{\sum_{i=1}^{N} (y_i - \hat{y}_i)^2}{\sum_{i=1}^{N} (y_i - \bar{y})^2}
+\end{equation}
+
+\noindent where $N$ is the number of observations, $y_i$ is the actual value, $\hat{y}_i$ is the predicted value, and $\bar{y}$ is the mean of the observed values. RMSE provides a measure of error magnitude in the same units as the target variable, penalizing larger errors more heavily. MAE offers a robust alternative that is less sensitive to outliers. sMAPE, the primary reporting metric adopted throughout this work, expresses relative accuracy as a percentage while avoiding the instability of classical MAPE when observed values approach zero~\cite{Makridakis1993}. The $R^2$ score indicates the proportion of variance explained by the model.
+
+% =========================================================
+% 3 Methodology
+% =========================================================
+\section{Methodology}
+\label{sec:methodology}
+
+This section describes the methodological path adopted to investigate transformer-level demand behavior and to evaluate forecasting performance in João Pessoa, Brazil. The methodological path comprises: (i) dataset description, (ii) transformer-level data treatment, (iii) time series construction and preprocessing, (iv) feature engineering for univariate and multivariate configurations, (v) forecasting framework, and (vi) experimental protocol and evaluation metrics. All steps were designed to ensure temporal consistency, reproducibility, and a fair comparison between forecasting settings.
+
+% ---------------------------------------------------------
+\subsection{Dataset}
+\label{subsec:dataset}
+
+\subsubsection{Data origin and scope}
+The primary dataset consists of operational measurements collected from distribution-level power transformers located in the city of João Pessoa, Brazil. The records are timestamped and include the daily peak apparent power, denoted as $S_{\max}$, which is used as the target variable in this study. Apparent power peaks reflect the effective daily stress on distribution assets and are directly relevant for planning and operational risk assessment.
+
+The analysis begins on January 1st, 2021, ensuring sufficient historical depth to model annual seasonality using long autoregressive structures. The training period extends up to December 31st, 2023, and a one-year horizon (365 days) is adopted for out-of-sample evaluation.
+
+\begin{figure}
+    \centering
+    \includesvg[width=\columnwidth]{images/substations_joao_pessoa}
+    \caption{Geographical Position of the Substations.}
+    \label{fig:map_substations}
+\end{figure}
+
+\subsubsection{Geographical Context of the Evaluated Substations}
+
+Figure~\ref{fig:map_substations} presents the geographical location of the three evaluated distribution transformers within the urban area of João Pessoa. Although all units operate within the same metropolitan region, they are embedded in distinct urban contexts with heterogeneous consumption characteristics.
+
+Transformer T1 is located in the central commercial district of the city, an area characterized by high daytime economic activity, office buildings, retail stores, and service establishments. Such configuration typically leads to pronounced weekday–weekend contrasts and stronger sensitivity to business-hour dynamics.
+
+Transformer T2 serves predominantly residential neighborhoods composed mainly of middle- and lower-middle-class households. This area exhibits more regular daily patterns, with consumption peaks commonly associated with residential activity cycles and lower commercial intensity.
+
+Transformer T3 is located in a coastal zone characterized by higher-income residential properties, tourism-related services, restaurants, hotels, and leisure infrastructure. This region presents a distinct demand profile influenced by seasonal tourism flows, real estate value concentration, and hospitality-sector activity.
+
+The spatial and socioeconomic heterogeneity across these three areas implies differentiated demand drivers, including variations in commercial intensity, residential density, income level, and weather sensitivity. Consequently, transformer-level forecasting performance must be interpreted in light of these localized characteristics, reinforcing the relevance of geographically contextualized modeling strategies in distribution networks.
+
+
+\subsubsection{Variables used in the study}
+Table~\ref{tab:variables_used} lists the variables effectively used in the proposed forecasting framework. In the univariate configuration, only historical $S_{\max}$ values are used through lags and rolling statistics. In the multivariate configuration, calendar and weather variables are incorporated as exogenous predictors.
+
+\begin{table*}[!t]
+\centering
+\caption{Variables used in the forecasting models.}
+\label{tab:variables_used}
+\footnotesize
+\begin{tabular}{p{3.2cm} p{7.0cm} p{2.2cm} p{1.2cm}}
+\toprule
+\textbf{Variable} & \textbf{Description} & \textbf{Type} & \textbf{Unit} \\
+\midrule
+\texttt{id} & Transformer identifier & Categorical & -- \\
+\texttt{datahora} & Timestamp of measurement & Datetime & -- \\
+$S_{\max}$ (\texttt{Smax}) & Daily peak apparent power (target) & Continuous & kVA \\
+\texttt{weekday} & Day of week ($0$--$6$) extracted from date index & Integer & -- \\
+\texttt{is\_weekend} & Weekend indicator ($1$ if Saturday/Sunday, else $0$) & Binary & -- \\
+\texttt{month} & Month of year ($1$--$12$) & Integer & -- \\
+\texttt{dayofyear} & Day of year ($1$--$365/366$) & Integer & -- \\
+\texttt{is\_holiday} & Brazilian national holiday indicator & Binary & -- \\
+\texttt{temp\_max\_anos} & Daily maximum temperature & Continuous & $^\circ$C \\
+\texttt{temp\_min\_anos} & Daily minimum temperature & Continuous & $^\circ$C \\
+\texttt{temp\_media\_anos} & Daily mean temperature & Continuous & $^\circ$C \\
+\texttt{precipitacao\_anos} & Daily accumulated precipitation & Continuous & mm \\
+\bottomrule
+\end{tabular}
+\end{table*}
+
+% ---------------------------------------------------------
+\subsection{Transformer-level data treatment}
+\label{subsec:data_treatment}
+
+\subsubsection{Initial structure and filtering}
+The raw dataset is timestamp-based and may present missing days and irregular sampling. Therefore, all transformations were applied independently for each transformer, grouping the dataset by the transformer identifier (\texttt{id}). Only the selected transformers under study were retained in the analysis, and all records were chronologically ordered by \texttt{datahora}.
+
+\subsubsection{Daily indexing and regularization}
+For each transformer, the timestamp column was converted to a datetime index and reindexed to a complete daily calendar defined between the minimum and maximum available dates. This step ensures a strictly regular daily series, which is required for seasonal analysis and recursive forecasting.
+
+\subsubsection{Missing value imputation}
+Missing daily values of $S_{\max}$ were imputed using time-based linear interpolation, limited to a maximum gap of seven consecutive days. Isolated missing values at the series boundaries were handled with forward filling limited to two additional days. Gaps larger than seven days were not interpolated and were flagged in the preprocessing log for manual inspection.
+
+\subsubsection{Weather data integration}
+
+Meteorological variables were constructed using historical weather observations for the city of João Pessoa covering the period from 2018 to 2023. To prevent temporal leakage in the 365-day recursive forecasting setting, daily climatological averages were computed for each calendar day based exclusively on historical observations.
+
+Specifically, for each day-of-year (e.g., January 1st, May 22nd), the historical mean values of maximum temperature, minimum temperature, mean temperature, and accumulated precipitation were calculated across the available years. These climatological averages were then assigned to the corresponding calendar days in the forecasting period.
+
+This procedure ensures that exogenous weather inputs reflect historically expected climatic conditions rather than realized future values, thereby preserving strict temporal causality in the forecasting framework.
+
+
+% ---------------------------------------------------------
+\subsection{Time series construction and exploratory characterization}
+\label{subsec:ts_construction}
+
+After preprocessing, each transformer yields a strictly regular daily time series:
+\begin{equation}
+y_t = S_{\max,t},
+\end{equation}
+where $t$ denotes the daily time index.
+
+To support the statistical characterization of demand behavior, an additive seasonal decomposition was conducted with annual periodicity (period $=365$). This step provides descriptive evidence of trend and seasonality components and supports subsequent modeling decisions regarding lag structure and rolling statistics.
+
+% ---------------------------------------------------------
+\subsection{Feature engineering}
+\label{subsec:feature_engineering}
+
+Two modeling configurations were considered: univariate (UV) and multivariate (MV).
+
+\subsubsection{Autoregressive lags and rolling statistics}
+
+Both univariate (UV) and multivariate (MV) configurations rely on the same endogenous feature structure to represent annual seasonality and long-range temporal dependencies. Specifically, the input space includes a selective set of autoregressive lags, $\{y_{t-1}, y_{t-2}, y_{t-7}, y_{t-14}, y_{t-30}, y_{t-60}, y_{t-180}, y_{t-365}\}$, chosen to capture short-term dependencies (days 1--2), weekly periodicity (day 7), fortnightly cycles (day 14), monthly effects (day 30 and 60), semi-annual dynamics (day 180), and full annual memory (day 365). This selective structure reduces dimensionality relative to using all 365 lags while preserving the most informative temporal patterns. In addition, a 365-day rolling mean computed from past observations is incorporated as a smoothed representation of long-term load evolution.
+
+Together, these features enable the model to capture persistent temporal correlations, yearly periodicity, and gradual structural variations in demand, ensuring that both short-term dynamics and annual cyclic behavior are explicitly encoded in the forecasting process.
+
+
+\subsubsection{Calendar features}
+
+Calendar predictors were deterministically derived from the datetime index. In addition to discrete representations of weekday, weekend indicator, month, day-of-year, and national holiday indicator, cyclical transformations using sine and cosine encoding were applied to periodic variables.
+
+Specifically, day-of-week and day-of-year were transformed into sine and cosine components to preserve their cyclical nature and avoid artificial discontinuities (e.g., between Sunday and Monday, or December 31st and January 1st). This encoding allows the model to learn smooth seasonal transitions while respecting the inherent periodic structure of temporal features.
+
+
+\subsubsection{Weather features}
+
+The multivariate (MV) configuration incorporates climatological weather features derived from historical averages, including daily maximum temperature, minimum temperature, mean temperature, and accumulated precipitation. These variables represent historical climatological expectations for each calendar day and were computed without using future observations, thus avoiding information leakage.
+
+By integrating climatological signals rather than realized future weather measurements, the model captures typical seasonal weather patterns while maintaining methodological consistency with medium-term operational forecasting scenarios.
+
+% ---------------------------------------------------------
+\subsection{Forecasting framework}
+\label{subsec:forecasting_framework}
+
+\subsubsection{Recursive multi-step forecasting}
+The forecasting task is formulated as a recursive multi-step regression problem. A one-step-ahead model $f(\cdot)$ is trained to estimate:
+\begin{equation}
+\hat{y}_{t+1} = f\big( y_t, y_{t-1}, \dots, y_{t-365}, \mathbf{x}_t \big),
+\end{equation}
+where $\mathbf{x}_t$ denotes the vector of exogenous predictors (calendar and weather) in the MV setting, and is omitted in the UV setting.
+
+For horizons $h>1$, predictions are generated recursively by feeding previous predictions back as inputs:
+\begin{equation}
+\hat{y}_{t+h} = f\big( \hat{y}_{t+h-1}, \hat{y}_{t+h-2}, \dots, y_{t-365}, \mathbf{x}_{t+h-1} \big).
+\end{equation}
+This strategy reflects operational conditions in which only past observations are available at prediction time and is widely adopted for medium-term forecasting.
+
+\subsubsection{Learning algorithms}
+Three tree-based ensemble regressors were evaluated in both UV and MV configurations: LightGBM, XGBoost, Gradient Boosting Regressor.
+
+All models were implemented within a unified recursive forecasting interface, ensuring identical lag structures and rolling features across experiments. Hyperparameters were tuned through a manual candidate set, and the best configuration for each transformer and model was selected based on validation performance.
+\subsection{Hyperparameter tuning}
+\label{subsec:hyperparameter_tuning}
+
+To ensure a fair and robust comparison across transformers, hyperparameters were tuned independently for each algorithm using a discrete candidate set (manual grid) designed to control model capacity and learning dynamics. The search focused on parameters known to strongly influence gradient-boosting performance in medium-term forecasting tasks, including the number of boosting iterations, learning rate, and tree depth (when applicable). 
+
+Model selection was performed using the same time-series backtesting protocol described in Section~\ref{subsec:experimental_setup}. For each transformer and candidate configuration, recursive multi-step forecasts were generated over the validation folds, and the configuration minimizing the Mean Absolute Error (MAE) was selected. This procedure avoids temporal leakage and prioritizes generalization under operational forecasting conditions.
+
+Table~\ref{tab:hyperparams} summarizes the hyperparameter candidate set explored in this study.
+
+% NOTE: this table requires \usepackage{multirow}
+\begin{table*}[t]
+\centering
+\caption{Hyperparameter candidate set used for model selection.}
+\label{tab:hyperparams}
+\footnotesize
+\begin{tabular}{p{3.2cm} p{7.8cm}}
+\toprule
+\textbf{Model} & \textbf{Hyperparameters tested} \\
+\midrule
+LightGBM & $n\_estimators \in \{200, 300, 500\}$; $learning\_rate \in \{0.01, 0.03, 0.05\}$; $max\_depth \in \{4, 5, 6\}$; $num\_leaves \in \{20, 31, 50\}$ \\
+\midrule
+XGBoost & $n\_estimators \in \{200, 300, 500\}$; $learning\_rate \in \{0.01, 0.03, 0.05\}$; $max\_depth \in \{3, 4, 5\}$; $subsample \in \{0.8, 0.9, 1.0\}$ \\
+\midrule
+Gradient Boosting (sklearn) & $n\_estimators \in \{100, 200, 300\}$; $learning\_rate \in \{0.05, 0.10\}$; $max\_depth \in \{3, 4\}$; $subsample \in \{0.8, 1.0\}$ \\
+\bottomrule
+\end{tabular}
+\end{table*}
+
+
+% ---------------------------------------------------------
+\subsection{Experimental protocol and evaluation}
+\label{subsec:experimental_setup}
+
+\subsubsection{Temporal split and forecast horizon}
+
+A strict chronological three-way split was adopted to prevent information leakage at all stages. Table~\ref{tab:split} summarizes the partition, the number of observations per set, and the exclusive role of each subset in the experimental pipeline.
+
+\begin{table}[!h]
+\centering
+\caption{Chronological data partition adopted throughout all experiments. Each subset has a single, exclusive role — no subset is used for a purpose assigned to another.}
+\label{tab:split}
+\footnotesize
+\begin{tabular}{p{1.5cm} p{2.8cm} p{1.4cm} p{2.2cm}}
+\toprule
+\textbf{Set} & \textbf{Period} & \textbf{Days} & \textbf{Role} \\
+\midrule
+Training   & 2021-01-01 -- 2022-12-31 & $\approx$730 & Model fitting \\
+Validation & 2023-01-01 -- 2023-12-31 & 365 & Hyperparameter selection (HPT) \\
+Test       & 2024-01-01 -- 2024-12-31 & 365 & Final evaluation (accessed once) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The training set is used exclusively for fitting model parameters. The validation set is used solely for hyperparameter tuning (HPT): for each algorithm and transformer, candidate configurations are evaluated by their MAE on this period, and the test set is never accessed during this stage. The test set is accessed only once per model, after HPT is complete, to produce the final metrics reported in the paper. This protocol guarantees strict temporal causality: no information from the future leaks into any fitting or selection decision.
+
+The full experimental workflow is illustrated in Figure~\ref{fig:pipeline}, which summarizes the sequential steps from data ingestion to final metric reporting.
+
+\begin{figure}[!h]
+\centering
+% TODO: substituir pelo diagrama real quando disponível.
+% O diagrama deve mostrar as 4 etapas em sequência:
+% [Dados brutos] → [Pré-processamento] → [HPT (treino→validação)] → [Avaliação final (treino+val→teste)]
+\fbox{\parbox{0.9\columnwidth}{\centering\small
+\textbf{Experimental pipeline (placeholder)} \\[4pt]
+\texttt{Raw data (2021--2024)} \\
+$\downarrow$ preprocessing \\
+\texttt{Train (2021--2022) | Val (2023) | Test (2024)} \\
+$\downarrow$ HPT on Train → evaluated on Val \\
+\texttt{Best hyperparams selected} \\
+$\downarrow$ Refit on Train+Val \\
+\texttt{Final evaluation on Test (one access only)}
+}}
+\caption{Experimental pipeline: data split, hyperparameter tuning (HPT), and final evaluation. Arrows denote sequential information flow; no backward leakage is permitted.}
+\label{fig:pipeline}
+\end{figure}
+
+\subsubsection{Backtesting with time-series cross-validation}
+
+Model selection relied on blocked time-series backtesting using \texttt{TimeSeriesFold}. The validation protocol preserves temporal order by generating multi-step forecasts from a fixed training window, thereby preventing information leakage and ensuring consistency with real-world deployment conditions.
+
+Two independent backtesting folds were used. In the first fold, the initial training size comprised all observations up to December 31st, 2022, and forecasts were evaluated over the 365-day validation period (2023). The best hyperparameter configuration per model and transformer was selected by minimizing the Mean Absolute Error (MAE) on this validation fold. In the second fold, the model was retrained on the combined training and validation data (2021--2023) and evaluated over the 365-day test horizon (2024). The test fold was accessed only once per model, after HPT was finalized. Model refitting between folds was disabled to reproduce operational deployment conditions.
+
+
+\subsubsection{Evaluation metrics}
+The final evaluation of the selected models was performed using four complementary metrics: RMSE (measuring absolute error magnitude), MAE (robust to outliers), sMAPE (primary percentage-based metric, symmetric and stable near zero), and $R^2$ (assessing explained variance). This combination enables a robust comparison of forecasting accuracy across transformers and across UV/MV settings, consistent with the definitions provided in Section~\ref{sec:1}.
+
+\subsubsection{Feature selection (mode MV only)}
+\label{subsubsec:feature_selection}
+
+In the multivariate configuration, a formal feature selection step is performed \emph{before} hyperparameter tuning (HPT), using exclusively the training set (2021--2022). This ordering is critical: selecting features on the training set prevents any information from the validation or test sets from influencing which predictors enter the model.
+
+The procedure is as follows. A lightweight LightGBM proxy model is trained with the full set of candidate exogenous features ($|\mathcal{F}| = 12$) on the training data. Feature importance is computed using the \emph{gain} criterion, which measures the average improvement in the loss function brought by each feature across all splits where it is used. This criterion is more discriminative than split-count importance for identifying features with genuine predictive value~\cite{Chen2016XGBoost}.
+
+Features are then ranked in descending order of importance and added cumulatively until the accumulated importance reaches a threshold of $\tau = 95\%$ of the total. Formally, the selected set $\mathcal{S}$ is:
+\begin{equation}
+\mathcal{S} = \left\{ f_1, \dots, f_k \;\middle|\; \sum_{j=1}^{k} \tilde{g}_j \geq \tau,\;\; \sum_{j=1}^{k-1} \tilde{g}_j < \tau \right\},
+\end{equation}
+\noindent where $\tilde{g}_j = g_j / \sum_i g_i$ is the normalized gain of the $j$-th feature in the ranked list.
+
+The selected subset $\mathcal{S}$ is then fixed and used identically across all three gradient-boosting algorithms (LightGBM, XGBoost, Gradient Boosting Regressor) for the same transformer. This ensures fair algorithmic comparison: the feature space is identical across models, so observed differences in predictive accuracy are attributable to the learning algorithm rather than to different input representations.
+
+The proxy LightGBM model is lightweight (200 estimators, max\_depth=4) and is discarded after selection; it plays no further role in the pipeline. Figure~\ref{fig:feature_selection} (Section~\ref{subsec:feature_importance}) shows, for each transformer, which features were retained and their relative importance values.
+
+% =========================================================
+% End of Methodology
+% =========================================================
+
+% =========================================================
+% =========================================================
+\section{Results}
+\label{sec:results}
+
+The results are presented through complementary qualitative and quantitative analyses. First, seasonal decomposition and the chronological split validate the statistical structure of the series and the evaluation protocol. Second, UV and MV forecasts are compared side-by-side to visually isolate the incremental effect of exogenous variables under the same recursive strategy. Finally, model performance is summarized using RMSE, MAE, sMAPE, and $R^2$, enabling an objective assessment of forecastability differences across transformers.
+
+
+% ---------------------------------------------------------
+\subsection{Demand patterns and experimental split}
+\label{subsec:results_patterns_split}
+
+\subsubsection{Seasonal decomposition}
+Figures~\ref{fig:decomp_all}a--c show the additive seasonal decomposition (period $=365$) for transformers T1, T2, and T3. Across all units, the decomposition indicates a persistent upward trend from 2021 to 2024 combined with pronounced annual seasonality. Residual dispersion is transformer-dependent, becoming more evident in T3 after 2023, consistent with its higher volatility. T2 exhibits comparatively smoother dynamics, whereas T1 presents intermediate variability with visible intra-week oscillations superimposed on the annual cycle. These findings address Research Question (1) by confirming trend growth, multi-scale seasonality, and localized volatility at the transformer level.
+
+\begin{figure}[!h]
+\centering
+\begin{subfigure}[t]{\columnwidth}
+    \centering
+    \includesvg[width=\linewidth]{images/EDA/T21a_04_decomposition.svg}
+    \subcaption{T1}
+\end{subfigure}\par\vspace{0.15cm}
+\begin{subfigure}[t]{\columnwidth}
+    \centering
+    \includesvg[width=\linewidth]{images/EDA/T22a_04_decomposition.svg}
+    \subcaption{T2}
+\end{subfigure}\par\vspace{0.15cm}
+\begin{subfigure}[t]{\columnwidth}
+    \centering
+    \includesvg[width=\linewidth]{images/EDA/T70a_04_decomposition.svg}
+    \subcaption{T3}
+\end{subfigure}
+\caption{Additive seasonal decomposition (period $=365$) of daily peak apparent power for the three transformers.}
+\label{fig:decomp_all}
+\end{figure}
+
+From a forecasting standpoint, these patterns are consequential. The coexistence of strong annual seasonality and persistent growth supports the use of long autoregressive structures (365 lags) and annual rolling statistics, whereas the transformer-dependent residual dispersion suggests that model performance will vary across substations. In particular, the higher residual variance in T3 indicates a larger proportion of demand behavior driven by factors not fully captured by deterministic seasonal components, which is consistent with a harder prediction problem.
+
+
+\subsubsection{Train--test split}
+Figure~\ref{fig:split_all} illustrates the chronological split adopted in all experiments. The training/validation period spans from 2021-01-01 to 2023-12-31, while the full year of 2024 is reserved for out-of-sample evaluation (365-day horizon). The dashed vertical line marks the start of the forecasting interval, ensuring strict temporal causality and preventing information leakage.
+
+\begin{figure}[!h]
+\centering
+\begin{subfigure}[t]{\columnwidth}
+    \centering
+    \includesvg[width=\linewidth]{images/EDA/T21a_01_serie_splits.svg}
+    \subcaption{T1}
+\end{subfigure}\par\vspace{0.15cm}
+\begin{subfigure}[t]{\columnwidth}
+    \centering
+    \includesvg[width=\linewidth]{images/EDA/T22a_01_serie_splits.svg}
+    \subcaption{T2}
+\end{subfigure}\par\vspace{0.15cm}
+\begin{subfigure}[t]{\columnwidth}
+    \centering
+    \includesvg[width=\linewidth]{images/EDA/T70a_01_serie_splits.svg}
+    \subcaption{T3}
+\end{subfigure}
+\caption{Chronological train--validation--test split used for evaluation. Blue: training (2021--2022); orange: validation (2023); green: test (2024).}
+\label{fig:split_all}
+\end{figure}
+
+Although point-wise error metrics are essential, medium-term operational forecasts are also assessed by their ability to track seasonal amplitude, peak magnitudes, and phase alignment across the year. For this reason, UV and MV forecasts are first compared visually to identify systematic improvements (or degradations) introduced by exogenous variables across algorithms.
+
+% ---------------------------------------------------------
+\subsection{UV versus MV forecast comparison}
+\label{subsec:results_uv_mv_visual}
+
+Figures~\ref{fig:matrix_T1}--\ref{fig:matrix_T3} compare univariate and multivariate recursive forecasts across the three learning algorithms for each transformer.
+
+\subsubsection{Transformer T1}
+Figure \ref{fig:matrix_T1} shows that T1 exhibits the most regular dynamics among the evaluated units, with strong periodicity and comparatively stable amplitude. In the UV configuration, all models reproduce the dominant annual cycle and preserve the phase alignment throughout the 365-day horizon, indicating that intrinsic autoregressive information already explains a substantial portion of variance. 
+
+When moving to the MV configuration, the forecast trajectories remain visually similar and improvements are not systematic across models. This behavior is consistent with a transformer profile dominated by structured temporal demand (weekday effects and yearly seasonality), for which additional exogenous inputs add limited incremental information. Moreover, because MV weather inputs are climatological (historical averages per calendar day) rather than realized future meteorology, the exogenous signal may not be sufficiently informative to outperform a strong autoregressive baseline in a highly regular transformer.
+
+\begin{figure*}[!h]
+\centering
+\setlength{\tabcolsep}{3pt}
+\renewcommand{\arraystretch}{1.0}
+\begin{tabular}{cc}
+\textbf{UV} & \textbf{MV} \\
+\includesvg[width=0.48\textwidth]{images/UV/plot_forecast_T21a_GradientBoosting.svg} &
+\includesvg[width=0.48\textwidth]{images/MV/forecast_T21a_GradientBoosting_MV.svg} \\
+\includesvg[width=0.48\textwidth]{images/UV/plot_forecast_T21a_LGBM.svg} &
+\includesvg[width=0.48\textwidth]{images/MV/forecast_T21a_LGBM_MV.svg} \\
+\includesvg[width=0.48\textwidth]{images/UV/plot_forecast_T21a_XGBoost.svg} &
+\includesvg[width=0.48\textwidth]{images/MV/forecast_T21a_XGBoost_MV.svg} \\
+\end{tabular}
+\caption{Univariate (UV) versus multivariate (MV) 365-day recursive forecasts for transformer T1 under three gradient boosting models.}
+\label{fig:matrix_T1}
+\end{figure*}
+
+\subsubsection{Transformer T2}
+Figure \ref{fig:matrix_T2} shows that T2 presents intermediate variability, but with more pronounced deviations from smooth seasonal behavior, particularly around mid-year troughs. In the UV configuration, models capture the overall annual shape but tend to smooth sharp reductions and recovery periods, indicating that purely autoregressive information is not always sufficient to reproduce localized anomalies.
+
+The MV configuration yields a more consistent qualitative improvement. Forecasts better approximate the depth of mid-year reductions and the subsequent recovery trajectory, with reduced systematic bias during low-demand periods. This suggests that contextual predictors (calendar structure and climatological temperature patterns) contribute meaningfully to demand dynamics in T2, in line with a transformer serving predominantly residential areas where cooling-related demand and daily activity patterns have a stronger influence on consumption variability.
+
+\begin{figure*}[!h]
+\centering
+\setlength{\tabcolsep}{3pt}
+\renewcommand{\arraystretch}{1.0}
+\begin{tabular}{cc}
+\textbf{UV} & \textbf{MV} \\
+\includesvg[width=0.48\textwidth]{images/UV/plot_forecast_T22a_GradientBoosting.svg} &
+\includesvg[width=0.48\textwidth]{images/MV/forecast_T22a_GradientBoosting_MV.svg} \\
+\includesvg[width=0.48\textwidth]{images/UV/plot_forecast_T22a_LGBM.svg} &
+\includesvg[width=0.48\textwidth]{images/MV/forecast_T22a_LGBM_MV.svg} \\
+\includesvg[width=0.48\textwidth]{images/UV/plot_forecast_T22a_XGBoost.svg} &
+\includesvg[width=0.48\textwidth]{images/MV/forecast_T22a_XGBoost_MV.svg} \\
+\end{tabular}
+\caption{Univariate (UV) versus multivariate (MV) 365-day recursive forecasts for transformer T2 under three gradient boosting models.}
+\label{fig:matrix_T2}
+\end{figure*}
+
+\subsubsection{Transformer T3}
+Figure \ref{fig:matrix_T3} shows that T3 is the most challenging transformer, exhibiting the highest amplitude and volatility in both the observed series and the decomposition residual component. In the UV setting, models remain stable over the full 365-day recursive horizon but systematically under-represent extreme variations, yielding smoother trajectories than observed data and occasional peak underestimation.
+
+Under the MV configuration, forecasts typically increase their amplitude and improve peak approximation, indicating that exogenous information contributes to capturing a larger share of demand variability. Nevertheless, substantial unexplained dispersion persists, suggesting that T3 is influenced by additional drivers not represented in the current feature set---for instance, localized tourism flows, behavioral shifts, or non-climatological meteorological extremes. These characteristics align with the coastal, high-income and service-intensive nature of the region supplied by this transformer, where demand can be more responsive to non-routine activity.
+
+\begin{figure*}[!h]
+\centering
+\setlength{\tabcolsep}{3pt}
+\renewcommand{\arraystretch}{1.0}
+\begin{tabular}{cc}
+\textbf{UV} & \textbf{MV} \\
+\includesvg[width=0.48\textwidth]{images/UV/plot_forecast_T70a_GradientBoosting.svg} &
+\includesvg[width=0.48\textwidth]{images/MV/forecast_T70a_GradientBoosting_MV.svg} \\
+\includesvg[width=0.48\textwidth]{images/UV/plot_forecast_T70a_LGBM.svg} &
+\includesvg[width=0.48\textwidth]{images/MV/forecast_T70a_LGBM_MV.svg} \\
+\includesvg[width=0.48\textwidth]{images/UV/plot_forecast_T70a_XGBoost.svg} &
+\includesvg[width=0.48\textwidth]{images/MV/forecast_T70a_XGBoost_MV.svg} \\
+\end{tabular}
+\caption{Univariate (UV) versus multivariate (MV) 365-day recursive forecasts for transformer T3 under three gradient boosting models.}
+\label{fig:matrix_T3}
+\end{figure*}
+
+% ---------------------------------------------------------
+\subsection{Feature selection and relevance}
+\label{subsec:feature_importance}
+
+This section presents the results of the two-stage feature analysis performed in the MV configuration: (i) the training-set feature selection described in Section~\ref{subsubsec:feature_selection}, and (ii) the post-training importance of the retained features extracted from the final fitted models.
+
+\subsubsection{Feature selection results}
+
+Figure~\ref{fig:feature_selection} shows, for each transformer, the gain-based importance of all 12 candidate exogenous features as measured by the proxy LightGBM model trained exclusively on the 2021--2022 training set. Features above the dashed threshold line (blue bars) were retained; features below it (gray bars) were discarded before HPT.
+
+\begin{figure*}[!h]
+\centering
+\begin{subfigure}[t]{0.32\textwidth}
+    \centering
+    \includesvg[width=\linewidth]{images/MV/feature_selection_T21a_MV.svg}
+    \subcaption{T1}
+\end{subfigure}
+\begin{subfigure}[t]{0.32\textwidth}
+    \centering
+    \includesvg[width=\linewidth]{images/MV/feature_selection_T22a_MV.svg}
+    \subcaption{T2}
+\end{subfigure}
+\begin{subfigure}[t]{0.32\textwidth}
+    \centering
+    \includesvg[width=\linewidth]{images/MV/feature_selection_T70a_MV.svg}
+    \subcaption{T3}
+\end{subfigure}
+\caption{Feature selection results for each transformer. Blue bars: features retained ($\geq 95\%$ accumulated gain). Gray bars: features discarded. The dashed line marks the importance threshold. Selection performed exclusively on training data (2021--2022).}
+\label{fig:feature_selection}
+\end{figure*}
+
+A consistent pattern emerges: weekday-related cyclical features (\texttt{weekday\_sin}, \texttt{weekday\_cos}) and annual seasonal encodings (\texttt{dayofyear\_sin}, \texttt{dayofyear\_cos}, \texttt{month\_sin}, \texttt{month\_cos}) account for the dominant share of accumulated gain across all transformers. Temperature variables (\texttt{temp\_media\_anos}, \texttt{temp\_max\_anos}) are retained in T2 and T3, where their contribution exceeds the threshold, but are discarded in T1, where calendar structure alone captures most of the predictable variance. Precipitation and holiday indicators fall below the threshold in all three cases.
+
+\subsubsection{Post-training feature importance}
+
+Figures~\ref{fig:importance_T21a}--\ref{fig:importance_T70a} show the feature importance of the \emph{selected} features as extracted from the final models trained on the combined training and validation sets (2021--2023). This analysis complements the selection step by revealing how importance is distributed among the retained predictors once the full model is fitted.
+
+The day-of-year encoding remains among the highest-ranked predictors across models, reinforcing the relevance of annual cyclic structure. Temperature variables exhibit higher relative importance in T2 than in T1, consistent with the larger MV performance improvement observed for the residential transformer. In T3, weather features contribute but are outranked by calendar structure, suggesting that the residual volatility of this unit is driven by factors not captured by the available exogenous inputs.
+
+\begin{figure*}[t]
+\centering
+\begin{subfigure}[t]{0.32\textwidth}
+    \centering
+    \includesvg[width=\linewidth]{images/MV/importance_T21a_GradientBoosting_MV.svg}
+    \subcaption{T1 -- Gradient Boosting}
+\end{subfigure}
+\begin{subfigure}[t]{0.32\textwidth}
+    \centering
+    \includesvg[width=\linewidth]{images/MV/importance_T21a_LGBM_MV.svg}
+    \subcaption{T1 -- LightGBM}
+\end{subfigure}
+\begin{subfigure}[t]{0.32\textwidth}
+    \centering
+    \includesvg[width=\linewidth]{images/MV/importance_T21a_XGBoost_MV.svg}
+    \subcaption{T1 -- XGBoost}
+\end{subfigure}
+\caption{Post-training feature importance for T1 (selected features only). Calendar variables dominate, reflecting routine-driven demand. Weather features were discarded at the selection stage.}
+\label{fig:importance_T21a}
+\end{figure*}
+
+\begin{figure*}[t]
+\centering
+\begin{subfigure}[t]{0.32\textwidth}
+    \centering
+    \includesvg[width=\linewidth]{images/MV/importance_T22a_GradientBoosting_MV.svg}
+    \subcaption{T2 -- Gradient Boosting}
+\end{subfigure}
+\begin{subfigure}[t]{0.32\textwidth}
+    \centering
+    \includesvg[width=\linewidth]{images/MV/importance_T22a_LGBM_MV.svg}
+    \subcaption{T2 -- LightGBM}
+\end{subfigure}
+\begin{subfigure}[t]{0.32\textwidth}
+    \centering
+    \includesvg[width=\linewidth]{images/MV/importance_T22a_XGBoost_MV.svg}
+    \subcaption{T2 -- XGBoost}
+\end{subfigure}
+\caption{Post-training feature importance for T2 (selected features only). Temperature variables exhibit comparatively higher importance than in T1, consistent with the stronger accuracy gains under MV forecasting.}
+\label{fig:importance_T22a}
+\end{figure*}
+
+\begin{figure*}[t]
+\centering
+\begin{subfigure}[t]{0.32\textwidth}
+    \centering
+    \includesvg[width=\linewidth]{images/MV/importance_T70a_GradientBoosting_MV.svg}
+    \subcaption{T3 -- Gradient Boosting}
+\end{subfigure}
+\begin{subfigure}[t]{0.32\textwidth}
+    \centering
+    \includesvg[width=\linewidth]{images/MV/importance_T70a_LGBM_MV.svg}
+    \subcaption{T3 -- LightGBM}
+\end{subfigure}
+\begin{subfigure}[t]{0.32\textwidth}
+    \centering
+    \includesvg[width=\linewidth]{images/MV/importance_T70a_XGBoost_MV.svg}
+    \subcaption{T3 -- XGBoost}
+\end{subfigure}
+\caption{Post-training feature importance for T3 (selected features only). Weekday and seasonal structure remain dominant; weather predictors contribute modestly, reflecting substantial unexplained volatility in this coastal, high-income transformer.}
+\label{fig:importance_T70a}
+\end{figure*}
+
+% ---------------------------------------------------------
+\subsection{Quantitative performance comparison}
+\label{subsec:results_quantitative}
+
+Table~\ref{tab:final_comparison} consolidates the best-performing model under UV and MV configurations for each transformer. Two key findings emerge. First, forecastability is strongly heterogeneous across transformers, as evidenced by substantial differences in $R^2$. Second, the incremental value of exogenous variables is not uniform and depends on the dominant demand drivers of each unit.
+
+\begin{table*}[t]
+\centering
+\caption{Comparison of Best Models under Univariate (UV) and Multivariate (MV) Configurations}
+\label{tab:final_comparison}
+\footnotesize
+\begin{tabular}{cccccccc}
+\toprule
+\textbf{Transformer} & \textbf{Config} & \textbf{Best Model} & \textbf{RMSE} & \textbf{MAE} & \textbf{sMAPE (\%)} & $\mathbf{R^2}$ & \textbf{$\Delta$RMSE (\%)} \\
+\midrule
+
+T1 & UV & LGBM & 0.0983 & -- & -- & 0.648 & -- \\
+     & MV & LGBM & 0.1011 & -- & -- & 0.627 & -2.88 \\
+
+\midrule
+
+T2 & UV & XGBoost & 0.0456 & -- & -- & 0.399 & -- \\
+     & MV & XGBoost & 0.0419 & -- & -- & 0.493 & +8.18 \\
+
+\midrule
+
+T3 & UV & XGBoost & 0.0781 & -- & -- & 0.223 & -- \\
+     & MV & LGBM & 0.0733 & -- & -- & 0.315 & +6.10 \\
+
+\bottomrule
+\end{tabular}
+\begin{minipage}{\textwidth}
+\smallskip
+\footnotesize \textit{Note: MAE and sMAPE values to be filled upon final experimental run. RMSE is reported in normalized units (per-unit of transformer nominal capacity). $\Delta$RMSE (\%) computed as $(RMSE_{UV} - RMSE_{MV})/RMSE_{UV} \times 100$.}
+\end{minipage}
+\end{table*}
+
+
+For T1, LightGBM provides the best performance in both settings; however, MV slightly increases RMSE ($\Delta RMSE = -2.88\%$, i.e., a degradation of 2.88\%). Together with the visual similarity between UV and MV forecasts, this indicates that T1 is primarily driven by intrinsic temporal structure. In this regime, the addition of climatological weather averages and calendar features yields no marginal benefit and may introduce additional variance relative to the highly informative autoregressive baseline.
+
+For T2, XGBoost yields the best performance, and MV configuration produces the largest improvement among the three transformers ($\Delta RMSE = +8.18\%$) along with a marked increase in $R^2$ from 0.399 to 0.493. This gain supports the interpretation that contextual variables contribute substantially to the dynamics of T2, improving the representation of mid-year troughs and reducing low-demand systematic bias.
+
+For T3, MV also improves performance ($\Delta RMSE = +6.10\%$) and increases explained variance from 0.223 to 0.315, although $R^2$ remains comparatively low in absolute terms. This result indicates that exogenous variables enhance robustness but cannot fully resolve volatility, consistent with the high residual dispersion observed in decomposition. From an operational perspective, T3 is a candidate for richer contextual modeling and probabilistic approaches to better quantify uncertainty under extreme demand variations.
+
+The results indicate that long-horizon transformer-level forecasting is feasible under both univariate and multivariate configurations; however, the magnitude of improvement introduced by exogenous variables varies substantially across units. In particular, the gains observed in T2 and T3 contrast with the marginal degradation in T1, suggesting that forecasting performance is less a function of algorithmic choice and more a consequence of local demand structure.
+
+These findings reinforce the notion that model complexity alone does not guarantee superior predictive performance. Instead, the relative contribution of contextual variables depends on the operational profile and demand regularity of each transformer.
+
+In summary, transformer-level medium-term forecasting in João Pessoa is largely driven by structured temporal behavior, while the added value of exogenous predictors is heterogeneous and becomes more pronounced in transformers with higher volatility and stronger contextual sensitivity.
+
+
+% =========================================================
+\section{Discussion}
+\label{sec:discussion}
+
+The empirical results highlight a strong intrinsic temporal structure governing transformer-level demand. Across all units, autoregressive information combined with long seasonal memory explains a considerable portion of variance, even under a 365-day recursive horizon. This suggests that, at least for medium-term planning scenarios, historical load remains a highly informative signal.
+
+Nevertheless, the incremental value of exogenous variables is clearly transformer-dependent. While T2 exhibits consistent improvements when climatological and calendar information are incorporated, T1 shows negligible gains and slight degradation in RMSE. This asymmetry indicates that the effectiveness of multivariate modeling cannot be generalized across the network. Instead, it appears to be conditioned by the degree to which demand is driven by external factors rather than by stable routine patterns.
+
+Transformer T3 represents a more complex case. Although multivariate models improve peak representation and variance explanation, a significant portion of volatility remains unexplained. This residual dispersion suggests that relevant drivers—possibly related to tourism dynamics, atypical events, or localized economic fluctuations—are not fully captured by the available feature set. In such contexts, deterministic recursive models may reach structural limitations.
+
+From an operational standpoint, these results imply that adopting a uniform forecasting strategy across substations may lead to unnecessary model complexity in some cases and insufficient modeling depth in others. A differentiated approach, where model structure reflects transformer-level demand characteristics, may be more appropriate for distribution-level planning.
+
+\subsection*{Limitations}
+
+Several limitations should be acknowledged. First, the meteorological dataset covers 2022--2024, leaving the entire training year of 2021 without direct weather observations. Missing climatological values for 2021 were handled through backward filling, which is an approximation that may affect the quality of weather features during the first training year. This limitation should be considered when interpreting the marginal contribution of meteorological variables in the MV configuration.
+
+Second, performance differences between UV and MV configurations are reported as point estimates without formal statistical significance testing. Future work should apply the Diebold--Mariano test~\cite{DieboldMariano1995} to rigorously assess whether observed improvements constitute statistically significant gains or fall within expected sampling variability.
+
+Third, the study is restricted to three transformers within a single city. Generalizing the findings to other distribution networks or climatic regions requires further empirical validation.
+
+
+% =========================================================
+\section{Conclusion}
+\label{sec:conclusion}
+
+This study examined medium-term transformer-level load forecasting in an urban Brazilian distribution system using recursive gradient-boosting ensemble models under univariate and multivariate configurations. A strict three-way chronological split (training: 2021--2022; validation: 2023; test: 2024) was adopted throughout, ensuring that hyperparameter selection never accessed the test set and that final metrics reflect genuine out-of-sample generalization.
+
+The results confirm the presence of strong annual and weekly seasonality combined with persistent structural growth, indicating that a substantial portion of transformer demand can be modeled through intrinsic temporal dependencies. While historical load alone supports stable 365-day recursive forecasts, the inclusion of climatological and calendar predictors yields heterogeneous effects across transformers: negligible or slightly negative for the routine-driven commercial profile of T1, and measurable improvements for the residential (T2) and mixed-use coastal (T3) transformers.
+
+These findings suggest that forecasting performance at the distribution level is primarily shaped by local demand structure rather than by algorithmic choice. Consequently, model selection should be guided by transformer-specific demand characteristics rather than by the application of uniform modeling frameworks across the network.
+
+Future research directions include: (i) probabilistic forecasting to quantify prediction uncertainty, especially for high-volatility units such as T3; (ii) richer contextual features capturing tourism flows, economic indicators, and distributed energy resource integration; (iii) spatial dependency modeling between neighboring substations; and (iv) application of the Diebold--Mariano test~\cite{DieboldMariano1995} to formally assess the statistical significance of performance differences between UV and MV configurations.
+
+%\begin{acknowledgements}
+%If you'd like to thank anyone, place your comments here
+%and remove the percent signs.
+%\end{acknowledgements}
+
+% BibTeX users please use one of
+% \bibliographystyle{spbasic}      % basic style, author-year citations
+% \bibliographystyle{spmpsci}      % mathematics and physical sciences
+% \bibliographystyle{spphys}       % APS-like style for physics
+\bibliographystyle{spmpsci}
+\bibliography{sample}   % name your BibTeX data base
+
+% TODO: adicionar ao arquivo sample.bib as seguintes entradas:
+%
+% @article{Makridakis1993,
+%   author  = {Makridakis, Spyros},
+%   title   = {Accuracy measures: theoretical and practical concerns},
+%   journal = {International Journal of Forecasting},
+%   volume  = {9}, number = {4}, pages = {527--529}, year = {1993}
+% }
+%
+% @article{DieboldMariano1995,
+%   author  = {Diebold, Francis X. and Mariano, Roberto S.},
+%   title   = {Comparing predictive accuracy},
+%   journal = {Journal of Business \& Economic Statistics},
+%   volume  = {13}, number = {3}, pages = {253--263}, year = {1995}
+% }
+%
+% @inproceedings{Chen2016XGBoost,
+%   author    = {Chen, Tianqi and Guestrin, Carlos},
+%   title     = {{XGBoost}: A Scalable Tree Boosting System},
+%   booktitle = {Proceedings of the 22nd ACM SIGKDD International Conference
+%                on Knowledge Discovery and Data Mining},
+%   pages     = {785--794},
+%   year      = {2016}
+% }
+
+% Non-BibTeX users please use
+% \begin{thebibliography}{}
+% %
+% % and use \bibitem to create references. Consult the Instructions
+% % for authors for reference list style.
+% %
+% \bibitem{RefJ}
+% % Format for Journal Reference
+% Author, Article title, Journal, Volume, page numbers (year)
+% % Format for books
+% \bibitem{RefB}
+% Author, Book title, page numbers. Publisher, place (year)
+% % etc
+% \end{thebibliography}
+
+\end{document}
+% end of file template.tex
+

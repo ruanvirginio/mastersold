@@ -74,6 +74,13 @@ LAGS           = [1, 2, 7, 14, 30, 60, 180, 365]   # lags seletivos
 ROLLING_WINDOW = 365
 STEPS          = 365                          # horizonte backtesting (1 ano)
 
+# NOTA METODOLÓGICA — Gap climático 2021:
+# O dataset climático cobre 2022-2024. Os dados de 2021 (ano de treino)
+# não têm cobertura climática. Em utils.py, o gap é preenchido com
+# bfill() + ffill() (propaga o primeiro valor de 2022 para trás).
+# Isso é uma aproximação para ~365 dias — DEVE ser declarado como
+# limitação no artigo. Seção sugerida: "Limitações e Trabalhos Futuros".
+
 # ─────────────────────────────────────────────────────────────────────────────
 # REPRODUTIBILIDADE
 # ─────────────────────────────────────────────────────────────────────────────

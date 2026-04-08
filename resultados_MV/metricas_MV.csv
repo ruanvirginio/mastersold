@@ -1,10 +1,10 @@
-transformador,nome_plot,modelo,abordagem,best_params,MAE_val,RMSE,MAE,MAPE,sMAPE,R2
-T21a,T1,LGBM,MV,"{'n_estimators': 500, 'learning_rate': 0.01, 'max_depth': 6, 'num_leaves': 50}",0.0652,0.1165,0.09,16.0153,15.8706,0.5036
-T21a,T1,XGBoost,MV,"{'n_estimators': 500, 'learning_rate': 0.01, 'max_depth': 4, 'subsample': 0.9}",0.0643,0.1161,0.09,16.2203,15.6124,0.5075
-T21a,T1,GradientBoosting,MV,"{'n_estimators': 300, 'learning_rate': 0.03, 'max_depth': 4, 'subsample': 0.8}",0.0643,0.1062,0.0801,15.0657,14.108,0.5873
-T22a,T2,LGBM,MV,"{'n_estimators': 500, 'learning_rate': 0.01, 'max_depth': 6, 'num_leaves': 50}",0.0275,0.0427,0.0341,6.0365,6.1116,0.4732
-T22a,T2,XGBoost,MV,"{'n_estimators': 200, 'learning_rate': 0.05, 'max_depth': 3, 'subsample': 1.0}",0.0307,0.0422,0.0334,6.0212,5.9891,0.4869
-T22a,T2,GradientBoosting,MV,"{'n_estimators': 300, 'learning_rate': 0.03, 'max_depth': 4, 'subsample': 0.8}",0.0312,0.0432,0.0332,5.9297,5.921,0.4608
-T70a,T3,LGBM,MV,"{'n_estimators': 200, 'learning_rate': 0.05, 'max_depth': 4, 'num_leaves': 20}",0.0477,0.0777,0.0636,7.6991,7.9824,0.2304
-T70a,T3,XGBoost,MV,"{'n_estimators': 200, 'learning_rate': 0.05, 'max_depth': 3, 'subsample': 1.0}",0.0471,0.0783,0.063,7.5681,7.8458,0.2177
-T70a,T3,GradientBoosting,MV,"{'n_estimators': 100, 'learning_rate': 0.1, 'max_depth': 3, 'subsample': 1.0}",0.0474,0.0752,0.0605,7.3118,7.5361,0.2793
+transformador,nome_plot,modelo,abordagem,features_sel,n_features_sel,best_params,MAE_val,RMSE,MAE,MAPE,sMAPE,R2
+T21a,T1,LGBM,MV,"['weekday_sin', 'dayofyear_sin']",2,"{'n_estimators': 500, 'learning_rate': 0.01, 'max_depth': 6, 'num_leaves': 50}",0.0655,0.1114,0.0833,15.2011,14.5919,0.5463
+T21a,T1,XGBoost,MV,"['weekday_sin', 'dayofyear_sin']",2,"{'n_estimators': 500, 'learning_rate': 0.01, 'max_depth': 4, 'subsample': 0.9}",0.067,0.1441,0.1178,19.6339,20.3779,0.2407
+T21a,T1,GradientBoosting,MV,"['weekday_sin', 'dayofyear_sin']",2,"{'n_estimators': 300, 'learning_rate': 0.03, 'max_depth': 4, 'subsample': 0.8}",0.064,0.139,0.1057,18.3629,18.1205,0.2932
+T22a,T2,LGBM,MV,"['weekday_sin', 'dayofyear_cos', 'temp_media_anos', 'dayofyear_sin', 'temp_min_anos', 'temp_max_anos', 'precipitacao_anos']",7,"{'n_estimators': 500, 'learning_rate': 0.01, 'max_depth': 6, 'num_leaves': 50}",0.0273,0.0413,0.0323,5.7027,5.7697,0.5081
+T22a,T2,XGBoost,MV,"['weekday_sin', 'dayofyear_cos', 'temp_media_anos', 'dayofyear_sin', 'temp_min_anos', 'temp_max_anos', 'precipitacao_anos']",7,"{'n_estimators': 200, 'learning_rate': 0.05, 'max_depth': 3, 'subsample': 1.0}",0.0276,0.0428,0.034,6.0306,6.0839,0.4722
+T22a,T2,GradientBoosting,MV,"['weekday_sin', 'dayofyear_cos', 'temp_media_anos', 'dayofyear_sin', 'temp_min_anos', 'temp_max_anos', 'precipitacao_anos']",7,"{'n_estimators': 300, 'learning_rate': 0.03, 'max_depth': 4, 'subsample': 0.8}",0.03,0.0431,0.0332,5.9207,5.9245,0.4645
+T70a,T3,LGBM,MV,"['weekday_sin', 'dayofyear_cos', 'dayofyear_sin', 'temp_media_anos', 'precipitacao_anos', 'weekday_cos', 'temp_max_anos']",7,"{'n_estimators': 200, 'learning_rate': 0.05, 'max_depth': 4, 'num_leaves': 20}",0.0475,0.0842,0.0707,8.5535,8.952,0.0959
+T70a,T3,XGBoost,MV,"['weekday_sin', 'dayofyear_cos', 'dayofyear_sin', 'temp_media_anos', 'precipitacao_anos', 'weekday_cos', 'temp_max_anos']",7,"{'n_estimators': 200, 'learning_rate': 0.05, 'max_depth': 4, 'subsample': 0.8}",0.0469,0.0827,0.068,8.1286,8.4934,0.1274
+T70a,T3,GradientBoosting,MV,"['weekday_sin', 'dayofyear_cos', 'dayofyear_sin', 'temp_media_anos', 'precipitacao_anos', 'weekday_cos', 'temp_max_anos']",7,"{'n_estimators': 200, 'learning_rate': 0.05, 'max_depth': 3, 'subsample': 0.8}",0.0482,0.0894,0.0739,8.8588,9.3255,-0.0206
