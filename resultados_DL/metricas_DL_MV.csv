@@ -1,0 +1,7 @@
+transformador,nome_plot,modelo,abordagem,features_sel,n_features_sel,best_params,MAE_val,RMSE,MAE,MAPE,sMAPE,R2
+T21a,T1,LSTM,MV,"['weekday_sin', 'dayofyear_sin']",2,"{'units': 128, 'dropout': 0.2}",0.0642,0.0974,0.0648,12.8657,11.1723,0.6532
+T21a,T1,CNN_LSTM,MV,"['weekday_sin', 'dayofyear_sin']",2,"{'filters': 64, 'kernel_size': 14, 'units': 128, 'dropout': 0.3}",0.0599,0.0891,0.0588,12.2132,10.7599,0.7097
+T22a,T2,LSTM,MV,"['weekday_sin', 'dayofyear_cos', 'temp_media_anos', 'dayofyear_sin', 'temp_min_anos', 'temp_max_anos', 'precipitacao_anos']",7,"{'units': 128, 'dropout': 0.2}",0.0254,0.0337,0.0244,4.3227,4.3552,0.6719
+T22a,T2,CNN_LSTM,MV,"['weekday_sin', 'dayofyear_cos', 'temp_media_anos', 'dayofyear_sin', 'temp_min_anos', 'temp_max_anos', 'precipitacao_anos']",7,"{'filters': 64, 'kernel_size': 14, 'units': 128, 'dropout': 0.3}",0.0273,0.0332,0.0247,4.3428,4.3977,0.6819
+T70a,T3,LSTM,MV,"['weekday_sin', 'dayofyear_cos', 'dayofyear_sin', 'temp_media_anos', 'precipitacao_anos', 'weekday_cos', 'temp_max_anos']",7,"{'units': 128, 'dropout': 0.2}",0.0478,0.0652,0.0515,6.3092,6.4237,0.4572
+T70a,T3,CNN_LSTM,MV,"['weekday_sin', 'dayofyear_cos', 'dayofyear_sin', 'temp_media_anos', 'precipitacao_anos', 'weekday_cos', 'temp_max_anos']",7,"{'filters': 64, 'kernel_size': 7, 'units': 64, 'dropout': 0.2}",0.0451,0.0612,0.0481,5.8399,5.9499,0.5222

@@ -161,13 +161,13 @@ def selecionar_features_mv(y_train: pd.Series,
     if n_sel < n_total:
         cutoff_val = exog_imp.iloc[n_sel - 1]["importance"]
         ax.axvline(cutoff_val, color="#dc2626", ls="--", lw=1.2,
-                   label=f"Limiar ({FEATURE_IMPORTANCE_THRESHOLD:.0%} acumulado)")
+                   label=f"Threshold ({FEATURE_IMPORTANCE_THRESHOLD:.0%} accumulated)")
         ax.legend(fontsize=8)
 
-    ax.set_title(f"{nome_plot} — Seleção de Features (proxy LightGBM, treino)\n"
-                 f"Azul = selecionada ({n_sel}/{n_total}), Cinza = descartada",
+    ax.set_title(f"{nome_plot} — Feature Selection (proxy LightGBM, training set)\n"
+                 f"Blue = selected ({n_sel}/{n_total}), Grey = discarded",
                  fontsize=10)
-    ax.set_xlabel("Importância (gain)")
+    ax.set_xlabel("Importance (gain)")
     plt.tight_layout()
     os.makedirs(output_dir, exist_ok=True)
     plt.savefig(f"{output_dir}/feature_selection_{tid}_MV.svg",
@@ -374,6 +374,17 @@ def treinar_boosting(df: pd.DataFrame, weather=None, mode="UV") -> pd.DataFrame:
             metrics = compute_metrics(y_true, pt["pred"])
             log.info(f"  ✓ TESTE → RMSE={metrics['RMSE']:.4f} R²={metrics['R2']:.4f}")
 
+            # ── Fit explícito em TREINO+VAL para expor importâncias ───────
+            # backtesting_forecaster usa fc_final internamente mas não deixa
+            # o forecaster fitado ao retornar — precisamos do fit explícito
+            # para chamar get_feature_importances() a seguir.
+            # Este fit usa exatamente os mesmos dados do cv_test (y_tv / exog_tv),
+            # portanto não introduz nenhum acesso adicional ao conjunto de teste.
+            kw_fit = dict(y=y_tv)
+            if exog_tv is not None:
+                kw_fit["exog"] = exog_tv
+            fc_final.fit(**kw_fit)
+
             # ── Plots ──────────────────────────────────────────────────────
             fc_val_plot = ForecasterRecursive(
                 estimator=info["estimator"].set_params(**best_params),
@@ -391,18 +402,39 @@ def treinar_boosting(df: pd.DataFrame, weather=None, mode="UV") -> pd.DataFrame:
                                tid, nome, output_dir, suffix=f"_{mode}")
             plot_residuals(y_true, pt["pred"], tid, nome, output_dir)
 
-            # Feature importance final (modelo completo treinado em treino+val)
+            # Feature importance final (modelo fitado em treino+val)
             try:
                 imp = fc_final.get_feature_importances()
-                imp_s = imp.sort_values("importance", ascending=True).tail(20)
-                fig, ax = plt.subplots(figsize=(7, 5))
-                ax.barh(imp_s["feature"], imp_s["importance"], color="#2563eb")
-                ax.set_title(f"{MAPA_PLOT.get(tid,tid)} — {nome} [{mode}]: "
-                             f"Feature Importance (treino+val)")
+
+                # Separar features exógenas das autorregressivas para clareza
+                exog_feats = [c for c in imp["feature"] if c in (exog.columns if exog is not None else [])]
+                lag_feats  = [c for c in imp["feature"] if c not in exog_feats]
+
+                imp_sorted = imp.sort_values("importance", ascending=True)
+
+                # Colorir: exógenas em azul, lags/rolling em cinza
+                colors = [
+                    "#2563eb" if f in exog_feats else "#94a3b8"
+                    for f in imp_sorted["feature"]
+                ]
+
+                n_show = min(20, len(imp_sorted))
+                imp_top = imp_sorted.tail(n_show)
+                colors_top = colors[-n_show:]
+
+                fig, ax = plt.subplots(figsize=(7, max(4, n_show * 0.35 + 1)))
+                ax.barh(imp_top["feature"], imp_top["importance"], color=colors_top)
+                ax.set_title(
+                    f"{MAPA_PLOT.get(tid,tid)} — {nome} [{mode}]: Feature Importance\n"
+                    f"Blue = selected exogenous | Grey = lag / rolling",
+                    fontsize=9
+                )
+                ax.set_xlabel("Importance (gain)")
                 plt.tight_layout()
                 plt.savefig(f"{output_dir}/importance_{tid}_{nome}_{mode}.svg",
                             dpi=150, bbox_inches="tight")
                 plt.close()
+                log.info(f"  Importância salva: importance_{tid}_{nome}_{mode}.svg")
             except Exception as e:
                 log.warning(f"  Importância não disponível: {e}")
 

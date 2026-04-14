@@ -313,10 +313,10 @@ def treinar_transformer(df: pd.DataFrame, weather=None, mode: str = "full") -> p
 
         # Curva de loss
         fig, ax = plt.subplots(figsize=(10,4))
-        ax.plot(history.history["loss"],     label="Treino",    color="#2563eb")
-        ax.plot(history.history["val_loss"], label="Validação", color="#f59e0b")
+        ax.plot(history.history["loss"],     label="Training",  color="#2563eb")
+        ax.plot(history.history["val_loss"], label="Validation", color="#f59e0b")
         ax.set_title(f"{MAPA_PLOT.get(tid,tid)} — {nome_modelo}: Loss")
-        ax.set_xlabel("Época"); ax.legend(); plt.tight_layout()
+        ax.set_xlabel("Epoch"); ax.legend(); plt.tight_layout()
         plt.savefig(f"{OUTPUT_TRANSFORMER}/loss_{tid}_{nome_modelo}.svg",
                     dpi=150, bbox_inches="tight"); plt.close()
 

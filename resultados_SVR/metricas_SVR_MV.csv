@@ -1,0 +1,4 @@
+transformador,nome_plot,modelo,abordagem,features_sel,n_features_sel,best_params,MAE_val,RMSE,MAE,MAPE,sMAPE,R2
+T21a,T1,SVR,MV,"['weekday_sin', 'dayofyear_sin']",2,"{'svr__C': 10, 'svr__epsilon': 0.1, 'svr__gamma': 'scale'}",0.0815,0.1177,0.0878,17.2453,15.7677,0.4938
+T22a,T2,SVR,MV,"['weekday_sin', 'dayofyear_cos', 'temp_media_anos', 'dayofyear_sin', 'temp_min_anos', 'temp_max_anos', 'precipitacao_anos']",7,"{'svr__C': 1, 'svr__epsilon': 0.1, 'svr__gamma': 'scale'}",0.0372,0.0459,0.037,6.7399,6.6441,0.3921
+T70a,T3,SVR,MV,"['weekday_sin', 'dayofyear_cos', 'dayofyear_sin', 'temp_media_anos', 'precipitacao_anos', 'weekday_cos', 'temp_max_anos']",7,"{'svr__C': 1, 'svr__epsilon': 0.1, 'svr__gamma': 'scale'}",0.0584,0.0949,0.0749,8.8184,9.3246,-0.1481

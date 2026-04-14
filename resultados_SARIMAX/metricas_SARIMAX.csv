@@ -1,4 +1,4 @@
 transformador,nome_plot,modelo,abordagem,best_params,AIC_treino,RMSE,MAE,MAPE,sMAPE,R2
-T21a,T1,SARIMAX,Estatístico,"(1, 1, 1)x(1, 1, 1, 7)",-1448.07,0.1853,0.1717,30.1491,34.2475,-0.256
-T22a,T2,SARIMAX,Estatístico,"(2, 1, 1)x(1, 1, 1, 7)",-3283.2,0.0465,0.0391,6.8635,7.0141,0.376
-T70a,T3,SARIMAX,Estatístico,"(1, 1, 1)x(1, 1, 1, 7)",-2593.69,0.0797,0.0627,7.5779,7.8106,0.1885
+T21a,T1,SARIMAX,Statistical,"(1, 1, 1)x(1, 1, 1, 7)",-1448.07,0.1853,0.1717,30.1491,34.2475,-0.256
+T22a,T2,SARIMAX,Statistical,"(2, 1, 1)x(1, 1, 1, 7)",-3283.2,0.0465,0.0391,6.8635,7.0141,0.376
+T70a,T3,SARIMAX,Statistical,"(1, 1, 1)x(1, 1, 1, 7)",-2593.69,0.0797,0.0627,7.5779,7.8106,0.1885

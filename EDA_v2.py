@@ -52,15 +52,15 @@ def plot_serie_com_splits(y: pd.Series, tid: str):
     nome   = MAPA_PLOT.get(tid, tid)
 
     fig, ax = plt.subplots(figsize=(14, 4))
-    y.loc[splits["train"]].plot(ax=ax, label="Treino",     color="#2563eb", lw=1.0)
-    y.loc[splits["val"]  ].plot(ax=ax, label="Validação",  color="#f59e0b", lw=1.0)
-    y.loc[splits["test"] ].plot(ax=ax, label="Teste",      color="#16a34a", lw=1.0)
+    y.loc[splits["train"]].plot(ax=ax, label="Training",    color="#2563eb", lw=1.0)
+    y.loc[splits["val"]  ].plot(ax=ax, label="Validation",  color="#f59e0b", lw=1.0)
+    y.loc[splits["test"] ].plot(ax=ax, label="Test",        color="#16a34a", lw=1.0)
 
     for vline in [splits["train"][-1], splits["val"][-1]]:
         ax.axvline(vline, color="gray", linestyle=":", lw=1)
 
-    ax.set_title(f"{nome} — Série Temporal com Partições", fontsize=13)
-    ax.set_xlabel("Data")
+    ax.set_title(f"{nome} — Time Series with Chronological Split", fontsize=13)
+    ax.set_xlabel("Date")
     ax.set_ylabel("Smax [MVA]")
     ax.legend()
     savefig(os.path.join(OUTPUT_EDA, f"{tid}_01_serie_splits.svg"))
@@ -72,13 +72,13 @@ def plot_hist_boxplot(y: pd.Series, tid: str):
     fig, axes = plt.subplots(1, 2, figsize=(12, 4))
 
     axes[0].hist(y.dropna(), bins=60, color="#2563eb", edgecolor="white")
-    axes[0].set_title(f"{nome} — Histograma de Smax")
+    axes[0].set_title(f"{nome} — Smax Histogram")
     axes[0].set_xlabel("Smax [MVA]")
-    axes[0].set_ylabel("Frequência")
+    axes[0].set_ylabel("Frequency")
 
     axes[1].boxplot(y.dropna(), vert=True, patch_artist=True,
                     boxprops=dict(facecolor="#dbeafe"))
-    axes[1].set_title(f"{nome} — Boxplot de Smax")
+    axes[1].set_title(f"{nome} — Smax Boxplot")
     axes[1].set_ylabel("Smax [MVA]")
 
     savefig(os.path.join(OUTPUT_EDA, f"{tid}_02_hist_box.svg"))
@@ -99,7 +99,7 @@ def plot_decomposicao(y: pd.Series, tid: str, period: int = PERIOD):
     result = seasonal_decompose(y.dropna(), model="additive", period=period)
     fig = result.plot()
     fig.set_size_inches(13, 9)
-    fig.suptitle(f"{nome} — Decomposição Sazonal Aditiva (período={period} dias)",
+    fig.suptitle(f"{nome} — Additive Seasonal Decomposition (period={period} days)",
                  fontsize=12, y=1.01)
     savefig(os.path.join(OUTPUT_EDA, f"{tid}_03_decomposicao.svg"))
 
@@ -124,36 +124,36 @@ def plot_acf_pacf(y: pd.Series, tid: str, nlags: int = 400):
     savefig(os.path.join(OUTPUT_EDA, f"{tid}_04_acf_pacf.svg"))
 
 
-def plot_boxplot_mensal(y: pd.Series, tid: str):
+def plot_boxplot_monthly(y: pd.Series, tid: str):
     """Distribuição de Smax por mês — revela sazonalidade intra-anual."""
     nome = MAPA_PLOT.get(tid, tid)
     df = y.to_frame("Smax")
     df["month"] = df.index.month
     data = [df.loc[df["month"] == m, "Smax"].dropna().values for m in range(1, 13)]
-    meses = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"]
+    meses = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]
 
     plt.figure(figsize=(13, 4))
     plt.boxplot(data, labels=meses, patch_artist=True,
                 boxprops=dict(facecolor="#dbeafe"), showfliers=False)
-    plt.title(f"{nome} — Distribuição Mensal de Smax", fontsize=13)
-    plt.xlabel("Mês")
+    plt.title(f"{nome} — Monthly Smax Distribution", fontsize=13)
+    plt.xlabel("Month")
     plt.ylabel("Smax [MVA]")
-    savefig(os.path.join(OUTPUT_EDA, f"{tid}_05_boxplot_mensal.svg"))
+    savefig(os.path.join(OUTPUT_EDA, f"{tid}_05_boxplot_monthly.svg"))
 
 
-def plot_perfil_semanal(y: pd.Series, tid: str):
+def plot_weekday_profile(y: pd.Series, tid: str):
     """Média de Smax por dia da semana — detecta padrão de carga útil vs. fim de semana."""
     nome  = MAPA_PLOT.get(tid, tid)
     df    = y.to_frame("Smax")
     df["weekday"] = df.index.weekday
     means = df.groupby("weekday")["Smax"].mean()
-    dias  = ["Seg","Ter","Qua","Qui","Sex","Sáb","Dom"]
+    dias  = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"]
 
     plt.figure(figsize=(9, 4))
     plt.bar(dias, means.values, color="#2563eb", edgecolor="white")
-    plt.title(f"{nome} — Média de Smax por Dia da Semana", fontsize=13)
-    plt.ylabel("Média Smax [MVA]")
-    savefig(os.path.join(OUTPUT_EDA, f"{tid}_06_perfil_semanal.svg"))
+    plt.title(f"{nome} — Mean Smax by Day of Week", fontsize=13)
+    plt.ylabel("Mean Smax [MVA]")
+    savefig(os.path.join(OUTPUT_EDA, f"{tid}_06_weekday_profile.svg"))
 
 
 def plot_heatmap_ano_dia(y: pd.Series, tid: str):
@@ -170,9 +170,9 @@ def plot_heatmap_ano_dia(y: pd.Series, tid: str):
     plt.figure(figsize=(15, max(3, len(pivot) * 1.2)))
     im = plt.imshow(pivot.values, aspect="auto", cmap="YlOrRd")
     plt.colorbar(im, label="Smax [MVA]")
-    plt.title(f"{nome} — Heatmap Ano × Dia-do-Ano", fontsize=13)
-    plt.ylabel("Ano")
-    plt.xlabel("Dia do Ano")
+    plt.title(f"{nome} — Heatmap Year × Day-of-Year", fontsize=13)
+    plt.ylabel("Year")
+    plt.xlabel("Day of Year")
     plt.yticks(range(len(pivot.index)), pivot.index)
     savefig(os.path.join(OUTPUT_EDA, f"{tid}_07_heatmap.svg"))
 
@@ -199,12 +199,12 @@ def plot_outliers(y: pd.Series, tid: str):
     fig, ax = plt.subplots(figsize=(14, 4))
     ax.plot(s.index, s.values, linewidth=0.8, color="#64748b", label="Smax")
     ax.scatter(outliers_iqr.index, outliers_iqr.values,
-               color="#f59e0b", s=20, zorder=5, label=f"Outlier IQR (n={len(outliers_iqr)})")
+               color="#f59e0b", s=20, zorder=5, label=f"IQR Outlier (n={len(outliers_iqr)})")
     ax.scatter(outliers_z.index, outliers_z.values,
                color="#dc2626", s=20, zorder=5, marker="x",
-               label=f"Outlier Z>3 (n={len(outliers_z)})")
-    ax.set_title(f"{nome} — Detecção de Outliers", fontsize=13)
-    ax.set_xlabel("Data")
+               label=f"Z>3 Outlier (n={len(outliers_z)})")
+    ax.set_title(f"{nome} — Outlier Detection", fontsize=13)
+    ax.set_xlabel("Date")
     ax.set_ylabel("Smax [MVA]")
     ax.legend()
     savefig(os.path.join(OUTPUT_EDA, f"{tid}_08_outliers.svg"))
@@ -259,20 +259,20 @@ def compute_summary(y: pd.Series, tid: str) -> dict:
     return {
         "id":              tid,
         "nome_plot":       MAPA_PLOT.get(tid, tid),
-        "inicio":          str(s.index.min().date()),
-        "fim":             str(s.index.max().date()),
-        "n_dias":          int(len(y)),       # inclui interpolados
-        "n_validos":       int(s.count()),
-        "media":           round(float(s.mean()), 4),
-        "desvio_pad":      round(float(s.std()), 4),
-        "minimo":          round(float(s.min()), 4),
+        "start":          str(s.index.min().date()),
+        "end":             str(s.index.max().date()),
+        "n_days":          int(len(y)),       # inclui interpolados
+        "n_valid":       int(s.count()),
+        "mean":           round(float(s.mean()), 4),
+        "std":      round(float(s.std()), 4),
+        "min":          round(float(s.min()), 4),
         "p25":             round(float(q1), 4),
-        "mediana":         round(float(s.median()), 4),
+        "median":         round(float(s.median()), 4),
         "p75":             round(float(q3), 4),
-        "maximo":          round(float(s.max()), 4),
+        "max":          round(float(s.max()), 4),
         "iqr":             round(float(iqr), 4),
-        "coef_variacao_%": round(float(s.std() / s.mean() * 100), 2),
-        "tx_outlier_iqr":  round(float(((s < q1 - 1.5*iqr) | (s > q3 + 1.5*iqr)).mean() * 100), 2),
+        "coef_variation_%": round(float(s.std() / s.mean() * 100), 2),
+        "outlier_rate_iqr":  round(float(((s < q1 - 1.5*iqr) | (s > q3 + 1.5*iqr)).mean() * 100), 2),
     }
 
 
@@ -281,7 +281,7 @@ def compute_summary(y: pd.Series, tid: str) -> dict:
 # =============================================================================
 
 def main():
-    log.info("=== EDA INICIADO ===")
+    log.info("=== EDA STARTED ===")
 
     df = pd.read_csv(DATA_PATH, sep=";", encoding="latin-1")
     df = df[df["id"].isin(TRANSFORMADORES)].copy()
@@ -310,8 +310,8 @@ def main():
         plot_hist_boxplot(y, tid)
         plot_decomposicao(y, tid)
         plot_acf_pacf(y, tid, nlags=400)   # ← nlags >= 366 para sazonalidade anual
-        plot_boxplot_mensal(y, tid)
-        plot_perfil_semanal(y, tid)
+        plot_boxplot_monthly(y, tid)
+        plot_weekday_profile(y, tid)
         plot_heatmap_ano_dia(y, tid)
         plot_outliers(y, tid)
 
@@ -323,7 +323,7 @@ def main():
     out_path = os.path.join(OUTPUT_EDA, "tabela_resumo_descritivo.csv")
     df_sum.to_csv(out_path, index=False)
     log.info(f"Resumo estatístico salvo em: {out_path}")
-    log.info("=== EDA CONCLUÍDO ===")
+    log.info("=== EDA COMPLETED ===")
     print(df_sum.to_string(index=False))
 
 

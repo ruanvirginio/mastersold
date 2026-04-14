@@ -1,4 +1,4 @@
-id,nome_plot,inicio,fim,n_dias,n_validos,media,desvio_pad,minimo,p25,mediana,p75,maximo,iqr,coef_variacao_%,tx_outlier_iqr
+id,nome_plot,start,end,n_days,n_valid,mean,std,min,p25,median,p75,max,iqr,coef_variation_%,outlier_rate_iqr
 T21a,T1,2021-01-01,2024-12-31,1461,1461,0.578,0.1594,0.0509,0.4587,0.6274,0.7075,0.9326,0.2488,27.59,0.07
 T22a,T2,2021-01-01,2024-12-31,1461,1461,0.5179,0.0619,0.3588,0.4714,0.5196,0.5624,0.8192,0.091,11.95,0.21
 T70a,T3,2021-01-01,2024-12-31,1461,1461,0.7377,0.0936,0.5027,0.6679,0.7376,0.8063,1.0,0.1384,12.69,0.0

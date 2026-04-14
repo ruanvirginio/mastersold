@@ -128,7 +128,7 @@ def plot_weekday_profile(y, tid):
     savefig(os.path.join(OUT_DIR, f"{tid}_08_weekday_mean.svg"))
 
 def plot_year_day_heatmap(y, tid):
-    """Heatmap ano × dia-do-ano para ver sazonalidade anual."""
+    """Heatmap year × day-of-year to visualise annual seasonality."""
     df = pd.DataFrame({"Smax": y.values}, index=y.index)
     df["year"] = df.index.year
     df["doy"] = df.index.dayofyear
@@ -136,7 +136,7 @@ def plot_year_day_heatmap(y, tid):
 
     plt.figure(figsize=(14,4))
     plt.imshow(pivot.values, aspect="auto")
-    plt.title(f"{tid} - Heatmap (Year x Day-of-Year)")
+    plt.title(f"{tid} - Heatmap (Year × Day-of-Year)")
     plt.ylabel("Year"); plt.xlabel("Day of year")
     plt.yticks(range(len(pivot.index)), pivot.index)
     plt.colorbar(label="Smax")
@@ -192,7 +192,7 @@ def plot_weather_relations(y, weather, tid):
     plt.figure(figsize=(13,4))
     df["Smax"].plot(label="Smax", linewidth=1)
     df["temp_media_anos"].plot(label="temp_media_anos", linewidth=1)
-    plt.title(f"{tid} - Smax and temperature (scaled axes not applied)")
+    plt.title(f"{tid} - Smax and mean temperature")
     plt.legend()
     savefig(os.path.join(OUT_DIR, f"{tid}_12_series_smax_temp.svg"))
 

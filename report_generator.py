@@ -123,7 +123,7 @@ def plot_comparativo_barras(df: pd.DataFrame) -> dict:
                 ax.text(bar.get_width()*1.01, bar.get_y()+bar.get_height()/2,
                         f"{val:.3f}", va="center", fontsize=8)
 
-        fig.suptitle(f"{nome} — Comparação de Todos os Modelos (Conjunto de Teste)",
+        fig.suptitle(f"{nome} — All Models Comparison (Test Set)",
                      fontsize=13, fontweight="bold")
         plt.tight_layout()
         figs[tid] = fig_to_base64(fig); plt.close()
@@ -145,10 +145,10 @@ def plot_ranking_global(df: pd.DataFrame) -> str:
         best = 0
         bars[best].set_edgecolor("black"); bars[best].set_linewidth(2.5)
         ax.set_title(met, fontsize=12, fontweight="bold")
-        ax.set_xlabel(f"{met} médio")
+        ax.set_xlabel(f"Mean {met}")
         ax.invert_yaxis()
 
-    fig.suptitle("Ranking Global — Média sobre Todos os Transformadores",
+    fig.suptitle("Global Ranking — Average over All Transformers",
                  fontsize=13, fontweight="bold")
     plt.tight_layout()
     img = fig_to_base64(fig); plt.close()
@@ -173,9 +173,9 @@ def plot_previsoes_futuras(tid: str) -> str:
                         alpha=0.08, color=cores[i])
 
     nome = MAPA_PLOT.get(tid, tid)
-    ax.set_title(f"{nome} — Previsões Futuras 2025–2027 (IC 95%) — Todos os Modelos",
+    ax.set_title(f"{nome} — Future Forecasts 2025–2027 (95% CI) — All Models",
                  fontsize=13, fontweight="bold")
-    ax.set_xlabel("Data"); ax.set_ylabel("Smax previsto [MVA]")
+    ax.set_xlabel("Data"); ax.set_ylabel("Predicted Smax [MVA]")
     ax.legend(ncol=3, fontsize=8)
     ax.axvline(pd.to_datetime("2025-01-01"), color="gray", ls=":", lw=1)
     ax.axvline(pd.to_datetime("2026-01-01"), color="gray", ls=":", lw=1)
@@ -288,7 +288,7 @@ def plot_erro_horizonte(tid: str) -> str:
             mae_rolling = pd.Series(erros).rolling(30, min_periods=1).mean().values
 
             ax_mae.plot(horizonte, mae_acumulado, lw=1.5,
-                        label=f"{modelo_name} (acum.)", color=cores[i])
+                        label=f"{modelo_name} (cumul.)", color=cores[i])
             ax_mae.plot(horizonte, mae_rolling, lw=1.0, ls="--",
                         color=cores[i], alpha=0.5)
 
@@ -316,21 +316,21 @@ def plot_erro_horizonte(tid: str) -> str:
                 label, fontsize=8, color="gray", rotation=90, va="bottom")
 
     ax_mae.set_title(
-        f"{nome} — MAE Acumulado ao Longo do Horizonte de Previsão\n"
-        "(linha sólida = MAE acumulado | linha tracejada = MAE rolling 30 dias)",
+        f"{nome} — Cumulative MAE over Forecast Horizon\n"
+        "(solid = cumulative MAE | dashed = 30-day rolling MAE)",
         fontsize=12, fontweight="bold"
     )
-    ax_mae.set_xlabel("Dia do horizonte de previsão")
+    ax_mae.set_xlabel("Forecast horizon (days)")
     ax_mae.set_ylabel("MAE [MVA]")
     ax_mae.legend(fontsize=8, ncol=3)
     ax_mae.grid(True, alpha=0.3)
 
     ax_rmse.set_title(
-        f"{nome} — RMSE Acumulado ao Longo do Horizonte de Previsão\n"
-        "(esperado: cresce com o horizonte — efeito do erro recursivo acumulado)",
+        f"{nome} — Cumulative RMSE over Forecast Horizon\n"
+        "(expected: grows with horizon — recursive error accumulation effect)",
         fontsize=12, fontweight="bold"
     )
-    ax_rmse.set_xlabel("Dia do horizonte de previsão")
+    ax_rmse.set_xlabel("Forecast horizon (days)")
     ax_rmse.set_ylabel("RMSE [MVA]")
     ax_rmse.legend(fontsize=8, ncol=3)
     ax_rmse.grid(True, alpha=0.3)
@@ -338,9 +338,9 @@ def plot_erro_horizonte(tid: str) -> str:
     # Caixa explicativa dentro do gráfico
     ax_mae.text(
         0.02, 0.97,
-        "📌 Previsão recursiva: lags dos dias iniciais são reais;\n"
+        "📌 Recursive forecast: initial lags use real values;\n"
         "    lags dos dias seguintes são previstos. O erro tende\n"
-        "    a crescer com o horizonte — comportamento esperado.",
+        "    grows with the horizon — expected behaviour.",
         transform=ax_mae.transAxes, fontsize=8,
         verticalalignment="top",
         bbox=dict(boxstyle="round,pad=0.5", facecolor="#1a1d2e",
@@ -422,7 +422,7 @@ def gerar_html(df: pd.DataFrame,
         img  = imgs_futuro.get(tid, "")
         if img:
             sections_futuro += f"""
-            <h3>{nome} — Previsão Futura 2025–2027</h3>
+            <h3>{nome} — Future Forecast 2025–2027</h3>
             <img src="data:image/png;base64,{img}" style="max-width:100%;border-radius:8px;">
             """
 
@@ -441,7 +441,7 @@ def gerar_html(df: pd.DataFrame,
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Relatório de Previsão de Carga — Mestrado em TI</title>
+<title>Load Forecasting Report — Master's Dissertation</title>
 <style>
   :root {{
     --bg: #0f1117; --card: #1a1d2e; --accent: #6366f1;
@@ -486,7 +486,7 @@ def gerar_html(df: pd.DataFrame,
 </head>
 <body>
 
-<h1>📊 Relatório de Previsão de Potência Aparente</h1>
+<h1>📊 Apparent Power Forecasting Report</h1>
 <p class="subtitle">
   Mestrado em Tecnologia da Informação · Subestações da Paraíba<br>
   Modelos: SARIMAX · SVR · XGBoost · LightGBM · GradientBoosting · LSTM ·
@@ -499,17 +499,17 @@ def gerar_html(df: pd.DataFrame,
   <p>Particionamento temporal estrito — <strong>sem data leakage</strong>:</p>
   <div class="split-info" style="margin-top:14px;">
     <div class="split-box">
-      <div class="label">🔵 Treino</div>
+      <div class="label">🔵 Training</div>
       <div class="val" style="color:#60a5fa;">2021–2022</div>
       <div style="font-size:11px;color:var(--muted);margin-top:4px;">Ajuste dos parâmetros</div>
     </div>
     <div class="split-box">
-      <div class="label">🟡 Validação</div>
+      <div class="label">🟡 Validation</div>
       <div class="val" style="color:#f59e0b;">2023</div>
       <div style="font-size:11px;color:var(--muted);margin-top:4px;">HPT · Early stopping</div>
     </div>
     <div class="split-box">
-      <div class="label">🟢 Teste</div>
+      <div class="label">🟢 Test</div>
       <div class="val" style="color:#34d399;">2024</div>
       <div style="font-size:11px;color:var(--muted);margin-top:4px;">Avaliação final única</div>
     </div>
@@ -523,7 +523,7 @@ def gerar_html(df: pd.DataFrame,
 
 <!-- TABELA DE RESULTADOS -->
 <div class="card">
-  <h2>2. Resultados Comparativos — Conjunto de Teste (2024)</h2>
+  <h2>2. Comparative Results — Test Set (2024)</h2>
   <p style="font-size:12px;color:var(--muted);margin-bottom:12px;">
     Melhor valor por transformador destacado em negrito.
     sMAPE é a métrica primária recomendada para artigos (simétrica e robusta).
@@ -543,22 +543,22 @@ def gerar_html(df: pd.DataFrame,
 
 <!-- RANKING -->
 <div class="card">
-  <h2>3. Ranking Global (Média — Todos os Transformadores)</h2>
+  <h2>3. Global Ranking (Mean — All Transformers)</h2>
   <img src="data:image/png;base64,{img_ranking}" style="max-width:100%;">
 </div>
 
 <!-- COMPARAÇÃO POR TRANSFORMADOR -->
 <div class="card">
-  <h2>4. Comparação por Transformador</h2>
+  <h2>4. Comparison by Transformer</h2>
   {sections_barras}
 </div>
 
 <!-- ERRO AO LONGO DO HORIZONTE -->
 <div class="card">
-  <h2>5. Acúmulo de Erro ao Longo do Horizonte de Previsão</h2>
+  <h2>5. Error Accumulation over the Forecast Horizon</h2>
   <div class="note">
-    <strong>Por que o erro cresce com o horizonte?</strong>
-    Na previsão recursiva, o modelo usa seus próprios resultados anteriores como lag para
+    <strong>Why does error grow with the forecast horizon?</strong>
+    In recursive forecasting, the model uses its own previous predictions as lags for
     prever o próximo passo. No início (dia 1–30), os lags ainda são majoritariamente
     <em>valores reais</em> do histórico. Após alguns meses, os lags passam a ser
     <em>previsões anteriores</em> — e qualquer imprecisão se acumula.
@@ -571,12 +571,12 @@ def gerar_html(df: pd.DataFrame,
 
 <!-- PREVISÃO FUTURA -->
 <div class="card">
-  <h2>6. Previsão Futura 2025–2027 com Intervalo de Confiança 95%</h2>
+  <h2>6. Future Forecast 2025–2027 with 95% Confidence Interval</h2>
   <div class="note">
     Modelos retreinados em <strong>todos os dados disponíveis (2021–2024)</strong>.
     Intervalo de confiança calculado via <strong>bootstrap residual</strong> (200 amostras).
     Clima futuro: média histórica 2022–2024 (limitação a documentar no artigo).
-    Incerteza aumenta com o horizonte — interpretar com cautela para 2026–2027.
+    Uncertainty grows with the horizon — interpret 2026–2027 projections with caution.
   </div>
   {sections_futuro}
 </div>
@@ -600,7 +600,7 @@ def gerar_html(df: pd.DataFrame,
     <li>Mencionar que clima 2021 foi preenchido com bfill/ffill dos primeiros dados de 2022</li>
     <li>Citar <strong>Bergmeir & Benítez (2012)</strong> para justificar a metodologia de avaliação</li>
     <li>Usar referências: Vaswani et al. (2017) para Transformer; Hochreiter & Schmidhuber (1997) para LSTM</li>
-    <li>Para previsão 3 anos: apresentar IC crescente e discutir incerteza epistêmica</li>
+    <li>3-year forecast: present growing CI and discuss epistemic uncertainty</li>
   </ul>
 </div>
 
@@ -635,7 +635,7 @@ def main():
 
     log.info(f"✅ Relatório salvo: {html_path}")
     log.info("   Abra no navegador para visualizar os resultados completos.")
-    print(f"\n✅ Relatório gerado: {html_path}")
+    print(f"\n✅ Report generated: {html_path}")
     print(f"   Tabela LaTeX:     {OUTPUT_REPORT}/tabela_resultados.tex")
     print(f"   Tabela CSV:       {OUTPUT_COMPARE}/tabela_completa.csv")
 

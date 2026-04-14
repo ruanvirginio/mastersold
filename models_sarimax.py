@@ -120,7 +120,7 @@ def treinar_sarimax(df: pd.DataFrame) -> pd.DataFrame:
         # Diagnóstico de resíduos (plot padrão statsmodels)
         try:
             fig = r_tv.plot_diagnostics(figsize=(12, 8))
-            fig.suptitle(f"{MAPA_PLOT.get(tid,tid)} — SARIMAX Diagnóstico de Resíduos",
+            fig.suptitle(f"{MAPA_PLOT.get(tid,tid)} — SARIMAX Residual Diagnostics",
                          fontsize=12)
             plt.tight_layout()
             plt.savefig(f"{OUTPUT_SARIMAX}/diagnostics_{tid}_SARIMAX.svg",
@@ -161,7 +161,7 @@ def treinar_sarimax(df: pd.DataFrame) -> pd.DataFrame:
 
         resultados.append({
             "transformador": tid, "nome_plot": MAPA_PLOT.get(tid,tid),
-            "modelo": "SARIMAX", "abordagem": "Estatístico",
+            "modelo": "SARIMAX", "abordagem": "Statistical",
             "best_params": f"{best_order}x{best_sorder}",
             "AIC_treino": round(best_aic, 2),
             **{k: round(v,4) for k,v in metrics.items()},

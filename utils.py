@@ -115,7 +115,7 @@ def get_splits(y: pd.Series) -> dict:
     tr  = y.index[y.index <= t]
     val = y.index[(y.index > t) & (y.index <= v)]
     te  = y.index[y.index > v]
-    log.info(f"Split → Treino:{len(tr)} | Val:{len(val)} | Teste:{len(te)} dias")
+    log.info(f"Split → Train:{len(tr)} | Val:{len(val)} | Test:{len(te)} dias")
     return dict(train=tr, val=val, test=te)
 
 
@@ -189,17 +189,17 @@ def plot_forecast_3way(y, pred_val, pred_test, tid, modelo, output_dir, suffix="
     v_end = pd.to_datetime(END_VALIDATION)
 
     fig, ax = plt.subplots(figsize=(14, 5))
-    y.loc[:t_end].plot(ax=ax, label="Treino",         color="#2563eb", lw=1.0)
-    y.loc[t_end:v_end].plot(ax=ax, label="Validação", color="#f59e0b", lw=1.0)
-    y.loc[v_end:].plot(ax=ax, label="Teste (real)",   color="#16a34a", lw=1.5)
+    y.loc[:t_end].plot(ax=ax, label="Training",       color="#2563eb", lw=1.0)
+    y.loc[t_end:v_end].plot(ax=ax, label="Validation", color="#f59e0b", lw=1.0)
+    y.loc[v_end:].plot(ax=ax, label="Test (real)",    color="#16a34a", lw=1.5)
     if pred_val  is not None and len(pred_val)  > 0:
-        pred_val.plot(ax=ax,  label="Prev. validação", color="#f59e0b", lw=1.5, ls="--")
+        pred_val.plot(ax=ax,  label="Val. forecast", color="#f59e0b", lw=1.5, ls="--")
     if pred_test is not None and len(pred_test) > 0:
-        pred_test.plot(ax=ax, label="Prev. teste",     color="#dc2626", lw=1.5, ls="--")
+        pred_test.plot(ax=ax, label="Test forecast",     color="#dc2626", lw=1.5, ls="--")
     ax.axvline(t_end, color="gray", ls=":", lw=1)
     ax.axvline(v_end, color="gray", ls=":", lw=1)
     ax.set_title(f"{nome} — {modelo}{' '+suffix if suffix else ''}", fontsize=13)
-    ax.set_xlabel("Data"); ax.set_ylabel("Smax [MVA]")
+    ax.set_xlabel("Date"); ax.set_ylabel("Smax [MVA]")
     ax.legend(fontsize=9)
     plt.tight_layout()
     path = f"{output_dir}/forecast_{tid}_{modelo}{suffix}.svg"
@@ -215,12 +215,12 @@ def plot_residuals(y_true, y_pred, tid, modelo, output_dir):
     fig, axes = plt.subplots(1, 2, figsize=(13, 4))
     axes[0].plot(idx, res, lw=0.8, color="#6366f1")
     axes[0].axhline(0, color="red", ls="--", lw=1)
-    axes[0].set_title(f"{nome} — {modelo}: Resíduos no Tempo")
-    axes[0].set_xlabel("Data"); axes[0].set_ylabel("Resíduo [MVA]")
+    axes[0].set_title(f"{nome} — {modelo}: Residuals over Time")
+    axes[0].set_xlabel("Data"); axes[0].set_ylabel("Residual [MVA]")
 
     axes[1].hist(res, bins=40, color="#6366f1", edgecolor="white")
-    axes[1].set_title(f"{nome} — {modelo}: Distribuição Resíduos")
-    axes[1].set_xlabel("Resíduo [MVA]"); axes[1].set_ylabel("Freq.")
+    axes[1].set_title(f"{nome} — {modelo}: Residual Distribution")
+    axes[1].set_xlabel("Residual [MVA]"); axes[1].set_ylabel("Frequency")
 
     plt.tight_layout()
     plt.savefig(f"{output_dir}/residuals_{tid}_{modelo}.svg",
@@ -235,14 +235,14 @@ def plot_future_forecast(y_hist, future_mean, future_lower, future_upper,
     """
     nome = MAPA_PLOT.get(tid, tid)
     fig, ax = plt.subplots(figsize=(16, 5))
-    y_hist.plot(ax=ax, label="Histórico", color="#2563eb", lw=1.2)
+    y_hist.plot(ax=ax, label="Historical", color="#2563eb", lw=1.2)
     ax.plot(future_mean.index, future_mean.values,
-            label="Previsão futura", color="#dc2626", lw=2, ls="--")
+            label="Future forecast", color="#dc2626", lw=2, ls="--")
     ax.fill_between(future_mean.index, future_lower, future_upper,
-                    alpha=0.2, color="#dc2626", label="IC 95% (bootstrap)")
+                    alpha=0.2, color="#dc2626", label="95% CI (bootstrap)")
     ax.axvline(y_hist.index[-1], color="gray", ls=":", lw=1.5, label="Último dado real")
-    ax.set_title(f"{nome} — {modelo}: Previsão Futura com IC 95%", fontsize=13)
-    ax.set_xlabel("Data"); ax.set_ylabel("Smax [MVA]")
+    ax.set_title(f"{nome} — {modelo}: Future Forecast with 95% CI", fontsize=13)
+    ax.set_xlabel("Date"); ax.set_ylabel("Smax [MVA]")
     ax.legend(fontsize=9)
     plt.tight_layout()
     plt.savefig(f"{output_dir}/future_{tid}_{modelo}.svg",

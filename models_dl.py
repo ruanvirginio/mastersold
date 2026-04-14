@@ -1,53 +1,53 @@
 # =============================================================================
-# models_dl.py — Deep Learning: LSTM · Stacked LSTM · CNN-LSTM
+# models_dl.py — Deep Learning: LSTM · CNN-LSTM  ·  UV e MV
 # =============================================================================
-# Todos os modelos usam janelas deslizantes (sliding windows).
-# Previsão multi-step: o modelo prevê 1 passo por vez e realimenta
-# suas próprias previsões — nunca usa valores reais futuros.
+# Estrutura espelhada ao models_boosting.py para comparação simétrica.
 #
-# Scalers ajustados APENAS no treino → sem data leakage.
-# Early stopping monitora val_loss → sem data leakage.
-# HPT (unidades, dropout) avaliado por MAE de validação.
-# Métricas reportadas calculadas SOMENTE no teste.
+# Modo UV: janela de entrada contém APENAS a série Smax normalizada.
+#          n_feat = 1 (só y escalado).
+#
+# Modo MV: janela de entrada contém Smax + features exógenas selecionadas.
+#          Seleção idêntica ao boosting: proxy LGBM, gain ≥ 95%, só treino.
+#
+# Previsão multi-step: recursiva — alimenta previsões como entrada do próximo
+# passo, nunca usa valores reais futuros.
+#
+# Scalers fitados APENAS no treino → sem data leakage.
+# Early stopping monitora val_loss (X_vl) → nunca o teste.
+# HPT avalia MAE na validação (invertido para escala original).
 # =============================================================================
 import warnings; warnings.filterwarnings("ignore")
 import os, random
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
+os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
 
 import numpy as np
 import pandas as pd
 import matplotlib; matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-# Compatível com TensorFlow 2.x e Keras 3
 import tensorflow as tf
 try:
-    # Keras 3 (TF >= 2.16) — import direto
     import keras
     from keras.models import Sequential
-    from keras.layers import (
-        Input, LSTM, Dense, Dropout, Conv1D, MaxPooling1D,
-        BatchNormalization
-    )
+    from keras.layers import (Input, LSTM, Dense, Dropout,
+                              Conv1D, MaxPooling1D, BatchNormalization)
     from keras.callbacks import EarlyStopping, ReduceLROnPlateau
     from keras.optimizers import Adam
 except ImportError:
-    # Keras 2 (TF < 2.16) — import via tensorflow
     from tensorflow.keras.models import Sequential
-    from tensorflow.keras.layers import (
-        Input, LSTM, Dense, Dropout, Conv1D, MaxPooling1D,
-        BatchNormalization
-    )
+    from tensorflow.keras.layers import (Input, LSTM, Dense, Dropout,
+                                         Conv1D, MaxPooling1D, BatchNormalization)
     from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau
     from tensorflow.keras.optimizers import Adam
 
 from sklearn.preprocessing import MinMaxScaler
+from lightgbm import LGBMRegressor
 
 from config import (
     DATA_PATH, TRANSFORMADORES, MAPA_PLOT, RANDOM_STATE,
-    DL_LOOKBACK, DL_HORIZON, DL_EPOCHS, DL_BATCH_SIZE,
-    DL_PATIENCE, DL_LR, END_TRAIN, END_VALIDATION,
-    OUTPUT_DL, OUTPUT_FUTURE
+    DL_LOOKBACK, DL_EPOCHS, DL_BATCH_SIZE, DL_PATIENCE, DL_LR,
+    END_TRAIN, END_VALIDATION, OUTPUT_DL, OUTPUT_FUTURE, FUTURE_END_DATE
 )
 from utils import (
     preparar_serie_diaria, adicionar_features_calendario,
@@ -61,63 +61,122 @@ tf.random.set_seed(RANDOM_STATE)
 os.environ["PYTHONHASHSEED"] = str(RANDOM_STATE)
 
 EXOG_COLS = [
-    "weekday_sin","weekday_cos","month_sin","month_cos",
-    "dayofyear_sin","dayofyear_cos","is_weekend","is_holiday",
-    "temp_max_anos","temp_min_anos","temp_media_anos","precipitacao_anos"
+    "weekday_sin", "weekday_cos", "month_sin", "month_cos",
+    "dayofyear_sin", "dayofyear_cos", "is_weekend", "is_holiday",
+    "temp_max_anos", "temp_min_anos", "temp_media_anos", "precipitacao_anos"
 ]
+FEATURE_IMPORTANCE_THRESHOLD = 0.95
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# SELEÇÃO DE FEATURES (idêntica ao boosting)
+# ─────────────────────────────────────────────────────────────────────────────
+def selecionar_features_mv(y_train, exog_train, tid, output_dir):
+    proxy = LGBMRegressor(
+        n_estimators=200, learning_rate=0.05, max_depth=4,
+        num_leaves=31, random_state=RANDOM_STATE, n_jobs=-1,
+        verbose=-1, importance_type="gain"
+    )
+    from skforecast.recursive import ForecasterRecursive
+    from skforecast.preprocessing import RollingFeatures
+    from config import LAGS, ROLLING_WINDOW
+    fc = ForecasterRecursive(
+        estimator=proxy, lags=LAGS,
+        window_features=RollingFeatures(stats=["mean"], window_sizes=[ROLLING_WINDOW])
+    )
+    fc.fit(y=y_train, exog=exog_train)
+    imp_df = fc.get_feature_importances()
+
+    exog_imp = imp_df[imp_df["feature"].isin(exog_train.columns)].copy()
+    exog_imp = exog_imp.sort_values("importance", ascending=False).reset_index(drop=True)
+    if exog_imp.empty or exog_imp["importance"].sum() == 0:
+        return list(exog_train.columns)
+
+    exog_imp["imp_cum"] = (exog_imp["importance"] / exog_imp["importance"].sum()).cumsum()
+    selected = exog_imp.loc[
+        exog_imp["imp_cum"].shift(1, fill_value=0) < FEATURE_IMPORTANCE_THRESHOLD,
+        "feature"
+    ].tolist()
+    if not selected:
+        selected = [exog_imp.iloc[0]["feature"]]
+
+    log.info(f"  [FS-DL] {tid}: {len(selected)}/{len(exog_imp)} → {selected}")
+
+    colors = ["#2563eb" if f in selected else "#94a3b8" for f in exog_imp["feature"]]
+    fig, ax = plt.subplots(figsize=(8, max(4, len(exog_imp) * 0.45 + 1)))
+    ax.barh(exog_imp["feature"][::-1], exog_imp["importance"][::-1], color=colors[::-1])
+    ax.set_title(f"{MAPA_PLOT.get(tid,tid)} — DL: Feature Selection\n"
+                 f"Blue = selected ({len(selected)}/{len(exog_imp)})", fontsize=9)
+    ax.set_xlabel("Importance (gain)")
+    plt.tight_layout()
+    os.makedirs(output_dir, exist_ok=True)
+    plt.savefig(f"{output_dir}/feature_selection_{tid}_DL_MV.svg",
+                dpi=150, bbox_inches="tight")
+    plt.close()
+    return selected
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # PREPARAÇÃO DE DADOS
 # ─────────────────────────────────────────────────────────────────────────────
-def preparar_dados_dl(df_tr, weather=None):
+def preparar_dados_dl(df_tr, weather=None, mode="UV"):
     """
-    Janelas deslizantes com normalização ajustada SOMENTE no treino.
-    Retorna dicionário com arrays prontos para Keras.
+    UV: X = janela de (lookback, 1) — só Smax normalizado.
+    MV: X = janela de (lookback, 1 + n_exog_sel) — Smax + features selecionadas.
+    Scaler fitado APENAS no treino.
     """
     y = preparar_serie_diaria(df_tr)
     splits = get_splits(y)
 
-    cal = adicionar_features_calendario(y)
-    if weather is not None:
-        feat_df = cal.join(weather, how="left").bfill().ffill()
+    sel_features = None
+
+    if mode == "MV":
+        cal = adicionar_features_calendario(y)
+        if weather is not None:
+            exog_df = cal.join(weather, how="left").bfill().ffill()
+        else:
+            exog_df = cal
+        cols_disp = [c for c in EXOG_COLS if c in exog_df.columns]
+        exog_df = exog_df[cols_disp]
+
+        sel_features = selecionar_features_mv(
+            y.loc[splits["train"]],
+            exog_df.loc[splits["train"]],
+            df_tr["id"].iloc[0] if "id" in df_tr.columns else "?",
+            OUTPUT_DL
+        )
+        exog_sel = exog_df[[c for c in sel_features if c in exog_df.columns]]
+
+        # Scaler das exógenas — fitado só no treino
+        sc_exog = MinMaxScaler()
+        sc_exog.fit(exog_sel.loc[splits["train"]].values)
+        exog_sc = sc_exog.transform(exog_sel.values)
     else:
-        feat_df = cal
+        exog_sc    = None
+        sc_exog    = None
+        sel_features = []
 
-    # ── Garantir APENAS colunas numéricas float32 ─────────────────────────
-    # Remove qualquer coluna de string/objeto que possa ter vazado pelo join
-    feat_df = feat_df.select_dtypes(include=[np.number])
-    # Forçar conversão explícita coluna por coluna (mais seguro que .astype em bloco)
-    for col in feat_df.columns:
-        feat_df[col] = pd.to_numeric(feat_df[col], errors="coerce").astype(np.float32)
-    feat_df = feat_df.fillna(0.0)
+    # Scaler do target — fitado só no treino
+    y_raw = y.values.reshape(-1, 1).astype(np.float32)
+    sc_y  = MinMaxScaler()
+    sc_y.fit(y_raw[y.index.isin(splits["train"])])
+    y_sc  = sc_y.transform(y_raw).flatten().astype(np.float32)
 
-    feat_cols = [c for c in EXOG_COLS if c in feat_df.columns]
-    if not feat_cols:
-        feat_cols = list(feat_df.columns)
+    # Montar array de features: [y_sc] ou [y_sc, exog_sc...]
+    if exog_sc is not None:
+        X_raw = np.hstack([y_sc.reshape(-1, 1), exog_sc]).astype(np.float32)
+    else:
+        X_raw = y_sc.reshape(-1, 1).astype(np.float32)
 
-    log.info(f"  DL features ({len(feat_cols)}): {feat_cols}")
-
-    X_raw = feat_df[feat_cols].to_numpy(dtype=np.float32)
-    y_raw = np.array(y.values, dtype=np.float32).reshape(-1, 1)
-
-    # Scalers fitados APENAS no treino
-    tr_mask = y.index.isin(splits["train"])
-    sc_X = MinMaxScaler(); sc_y = MinMaxScaler()
-    sc_X.fit(X_raw[tr_mask]); sc_y.fit(y_raw[tr_mask])
-    X_sc = sc_X.transform(X_raw).astype(np.float32)
-    y_sc = sc_y.transform(y_raw).flatten().astype(np.float32)
-
-    # Janelas
+    # Janelas deslizantes
     def make_windows(X, y, lb):
         Xw, yw = [], []
         for i in range(lb, len(y)):
-            Xw.append(X[i-lb:i])
+            Xw.append(X[i - lb:i])
             yw.append(y[i])
-        return np.array(Xw), np.array(yw)
+        return np.array(Xw, dtype=np.float32), np.array(yw, dtype=np.float32)
 
-    Xw, yw = make_windows(X_sc, y_sc, DL_LOOKBACK)
-    Xw = Xw.astype(np.float32)
-    yw = yw.astype(np.float32)
+    Xw, yw = make_windows(X_raw, y_sc, DL_LOOKBACK)
     idx_w  = y.index[DL_LOOKBACK:]
 
     t_end = pd.to_datetime(END_TRAIN)
@@ -130,163 +189,136 @@ def preparar_dados_dl(df_tr, weather=None):
         X_tr=Xw[m_tr], y_tr=yw[m_tr],
         X_vl=Xw[m_vl], y_vl=yw[m_vl],
         X_te=Xw[m_te], y_te=yw[m_te],
-        idx_te=idx_w[m_te],
-        sc_y=sc_y, sc_X=sc_X,   # sc_X adicionado para previsão futura sem re-fit
-        y_series=y,
-        n_feat=Xw.shape[2],
+        idx_vl=idx_w[m_vl], idx_te=idx_w[m_te],
+        sc_y=sc_y, sc_exog=sc_exog,
+        y_series=y, n_feat=Xw.shape[2],
         X_all=Xw, y_all=yw, idx_all=idx_w,
-        X_raw_fut_base=X_sc,   # para previsão futura
-        feat_cols=feat_cols,
+        sel_features=sel_features,
+        X_raw_full=X_raw,   # para previsão futura
+        y_sc_full=y_sc,
     )
 
+
 # ─────────────────────────────────────────────────────────────────────────────
-# ARQUITETURAS
+# ARQUITETURAS (apenas LSTM e CNN-LSTM)
 # ─────────────────────────────────────────────────────────────────────────────
 def build_lstm(n_feat, units=128, dropout=0.2):
     m = Sequential([
         Input((DL_LOOKBACK, n_feat)),
         LSTM(units, return_sequences=True), Dropout(dropout),
-        LSTM(units//2),                     Dropout(dropout),
+        LSTM(units // 2),                   Dropout(dropout),
         Dense(64, activation="relu"),        Dense(1)
     ], name="LSTM")
-    m.compile(optimizer=Adam(learning_rate=DL_LR), loss="mse", metrics=["mae"]); return m
+    m.compile(Adam(DL_LR), "mse", metrics=["mae"])
+    return m
 
-def build_stacked_lstm(n_feat, units=128, dropout=0.2):
-    m = Sequential([
-        Input((DL_LOOKBACK, n_feat)),
-        LSTM(units,    return_sequences=True), Dropout(dropout),
-        LSTM(units//2, return_sequences=True), Dropout(dropout),
-        LSTM(units//4),                        Dropout(dropout),
-        Dense(64, activation="relu"),           Dense(1)
-    ], name="Stacked_LSTM")
-    m.compile(optimizer=Adam(learning_rate=DL_LR), loss="mse", metrics=["mae"]); return m
 
 def build_cnn_lstm(n_feat, filters=64, kernel_size=7, units=64, dropout=0.2):
     m = Sequential([
         Input((DL_LOOKBACK, n_feat)),
         Conv1D(filters, kernel_size, activation="relu", padding="same"),
         BatchNormalization(),
-        Conv1D(filters//2, 3, activation="relu", padding="same"),
+        Conv1D(filters // 2, 3, activation="relu", padding="same"),
         MaxPooling1D(2), Dropout(dropout),
         LSTM(units),     Dropout(dropout),
         Dense(64, activation="relu"), Dense(1)
     ], name="CNN_LSTM")
-    m.compile(optimizer=Adam(learning_rate=DL_LR), loss="mse", metrics=["mae"]); return m
+    m.compile(Adam(DL_LR), "mse", metrics=["mae"])
+    return m
+
 
 ARCHITECTURES = {
     "LSTM": (build_lstm, [
-        {"units":64,  "dropout":0.2},
-        {"units":128, "dropout":0.2},
-        {"units":128, "dropout":0.3},
-    ]),
-    "Stacked_LSTM": (build_stacked_lstm, [
-        {"units":64,  "dropout":0.2},
-        {"units":128, "dropout":0.3},
+        {"units": 64,  "dropout": 0.2},
+        {"units": 128, "dropout": 0.2},
+        {"units": 128, "dropout": 0.3},
     ]),
     "CNN_LSTM": (build_cnn_lstm, [
-        {"filters":32, "kernel_size":7,  "units":64,  "dropout":0.2},
-        {"filters":64, "kernel_size":7,  "units":64,  "dropout":0.2},
-        {"filters":64, "kernel_size":14, "units":128, "dropout":0.3},
+        {"filters": 32, "kernel_size": 7,  "units": 64,  "dropout": 0.2},
+        {"filters": 64, "kernel_size": 7,  "units": 64,  "dropout": 0.2},
+        {"filters": 64, "kernel_size": 14, "units": 128, "dropout": 0.3},
     ]),
 }
+
 
 def get_callbacks():
     return [
         EarlyStopping(monitor="val_loss", patience=DL_PATIENCE,
                       restore_best_weights=True, verbose=0),
         ReduceLROnPlateau(monitor="val_loss", factor=0.5,
-                          patience=DL_PATIENCE//2,
-                          min_learning_rate=1e-6, verbose=0),
+                          patience=DL_PATIENCE // 2, min_lr=1e-6, verbose=0),
     ]
 
+
 # ─────────────────────────────────────────────────────────────────────────────
-# RECURSIVE PREDICT PARA MODELOS DL
+# RECURSIVE PREDICT
 # ─────────────────────────────────────────────────────────────────────────────
-def recursive_predict_dl(model, last_window, future_X_exog, sc_y, steps):
+def recursive_predict_dl(model, last_window, fut_exog_sc, sc_y, steps):
     """
-    Previsão multi-step recursiva para modelos Keras.
-    last_window: (lookback, n_feat) — última janela real conhecida.
-    future_X_exog: (steps, n_feat) — features exógenas futuras (calendário).
-    Alimenta previsões anteriores como entrada dos próximos passos.
+    UV: fut_exog_sc = None → desliza janela só com previsão anterior.
+    MV: fut_exog_sc = (steps, n_exog) → substitui canal exógeno em cada passo.
     """
-    window = last_window.copy()   # (lookback, n_feat)
+    window   = last_window.copy()   # (lookback, n_feat)
     preds_sc = []
+    n_feat   = window.shape[1]
 
     for s in range(steps):
-        x_in = window[np.newaxis, :, :]   # (1, lookback, n_feat)
-        yhat_sc = model.predict(x_in, verbose=0)[0, 0]
-        preds_sc.append(yhat_sc)
+        x_in = window[np.newaxis]
+        yhat = model.predict(x_in, verbose=0)[0, 0]
+        preds_sc.append(yhat)
 
-        # Deslizar janela: remover o mais antigo, adicionar o novo
-        new_row = future_X_exog[s].copy() if s < len(future_X_exog) else window[-1].copy()
-        # Substituir o canal da série (assumindo que é o último ou não há canal de série)
+        # Nova linha: [yhat_sc, exog_s...] ou só [yhat_sc]
+        new_row = np.zeros(n_feat, dtype=np.float32)
+        new_row[0] = yhat
+        if fut_exog_sc is not None and s < len(fut_exog_sc):
+            new_row[1:] = fut_exog_sc[s]
         window = np.vstack([window[1:], new_row])
 
     preds_sc = np.array(preds_sc).reshape(-1, 1)
     return sc_y.inverse_transform(preds_sc).flatten()
 
+
 # ─────────────────────────────────────────────────────────────────────────────
-# TREINO
+# PIPELINE PRINCIPAL
 # ─────────────────────────────────────────────────────────────────────────────
-def treinar_dl(df: pd.DataFrame, weather=None) -> pd.DataFrame:
+def treinar_dl(df: pd.DataFrame, weather=None, mode="UV") -> pd.DataFrame:
     resultados = []
 
     for tid, df_tr in df.groupby("id"):
-        log.info(f"\n{'='*60}\n  {tid}  [DL]\n{'='*60}")
-        data = preparar_dados_dl(df_tr, weather)
-        if len(data["X_tr"]) == 0 or len(data["X_vl"]) == 0:
-            log.warning(f"  {tid}: dados insuficientes, pulando."); continue
+        log.info(f"\n{'='*60}\n  {tid}  [DL-{mode}]\n{'='*60}")
+        data = preparar_dados_dl(df_tr, weather=weather, mode=mode)
 
-        # ── Garantia final: todos os arrays como float32 antes de entrar no Keras
-        for key in ["X_tr","y_tr","X_vl","y_vl","X_te","y_te","X_all","y_all"]:
-            if key in data:
-                data[key] = np.array(data[key], dtype=np.float32)
+        if len(data["X_tr"]) == 0 or len(data["X_vl"]) == 0:
+            log.warning(f"  {tid}: dados insuficientes."); continue
+
+        for key in ["X_tr", "y_tr", "X_vl", "y_vl", "X_te", "y_te", "X_all", "y_all"]:
+            data[key] = np.array(data[key], dtype=np.float32)
 
         for nome, (build_fn, hpt_grid) in ARCHITECTURES.items():
-            log.info(f"\n  >>> {nome}")
+            log.info(f"\n  >>> {nome} [{mode}]")
 
             # ── HPT sobre VALIDAÇÃO ───────────────────────────────────────
             best_mae, best_params = np.inf, None
-
             for params in hpt_grid:
                 model = build_fn(data["n_feat"], **params)
-
-                # ── DEBUG: inspecionar TUDO antes do fit ──────────────────
-                X_tr = np.array(data["X_tr"], dtype=np.float32)
-                y_tr = np.array(data["y_tr"], dtype=np.float32)
-                X_vl = np.array(data["X_vl"], dtype=np.float32)
-                y_vl = np.array(data["y_vl"], dtype=np.float32)
-                log.info(f"  shapes: X_tr={X_tr.shape} {X_tr.dtype} | "
-                         f"y_tr={y_tr.shape} {y_tr.dtype} | "
-                         f"X_vl={X_vl.shape} {X_vl.dtype} | "
-                         f"y_vl={y_vl.shape} {y_vl.dtype}")
-
-                model.fit(X_tr, y_tr,
-                          validation_data=(X_vl, y_vl),
+                model.fit(data["X_tr"], data["y_tr"],
+                          validation_data=(data["X_vl"], data["y_vl"]),
                           epochs=DL_EPOCHS, batch_size=DL_BATCH_SIZE,
                           callbacks=get_callbacks(), verbose=0)
-                pred_vl = model.predict(data["X_vl"], verbose=0).flatten()
-                pred_vl_inv = data["sc_y"].inverse_transform(
-                    pred_vl.reshape(-1,1)).flatten()
-                y_vl_inv = data["sc_y"].inverse_transform(
-                    data["y_vl"].reshape(-1,1)).flatten()
-                mae = np.mean(np.abs(y_vl_inv - pred_vl_inv))
+                pv_sc  = model.predict(data["X_vl"], verbose=0).flatten()
+                pv_inv = data["sc_y"].inverse_transform(pv_sc.reshape(-1, 1)).flatten()
+                yv_inv = data["sc_y"].inverse_transform(data["y_vl"].reshape(-1, 1)).flatten()
+                mae    = np.mean(np.abs(yv_inv - pv_inv))
                 log.info(f"     {params} → MAE_val={mae:.4f}")
                 if mae < best_mae:
                     best_mae, best_params = mae, params
 
             log.info(f"  ✓ HPT → {best_params} | MAE_val={best_mae:.4f}")
 
-            # ── Retreinar TREINO+VAL, avaliar TESTE ───────────────────────
+            # ── Retreinar TREINO+VAL, early stopping monitora VAL ─────────
             X_tv = np.vstack([data["X_tr"], data["X_vl"]])
             y_tv = np.concatenate([data["y_tr"], data["y_vl"]])
-
             model_final = build_fn(data["n_feat"], **best_params)
-            # ── CORREÇÃO: Early stopping monitora VAL (X_vl), NUNCA o teste ──
-            # Usar X_vl como monitor de early stopping ao retreinar em treino+val
-            # é aceitável pois o ES apenas controla quando parar, não seleciona
-            # hiperparâmetros (esses já foram selecionados na etapa de HPT).
-            # Alternativa mais conservadora: treinar por épocas fixas (sem ES).
             history = model_final.fit(
                 X_tv, y_tv,
                 validation_data=(data["X_vl"], data["y_vl"]),
@@ -294,118 +326,96 @@ def treinar_dl(df: pd.DataFrame, weather=None) -> pd.DataFrame:
                 callbacks=get_callbacks(), verbose=0
             )
 
-            pred_te = model_final.predict(data["X_te"], verbose=0).flatten()
-            pred_te_inv = data["sc_y"].inverse_transform(
-                pred_te.reshape(-1,1)).flatten()
-            y_te_inv = data["sc_y"].inverse_transform(
-                data["y_te"].reshape(-1,1)).flatten()
-
-            y_true_s = pd.Series(y_te_inv,   index=data["idx_te"])
-            y_pred_s = pd.Series(pred_te_inv, index=data["idx_te"])
+            # ── Avaliação no TESTE ────────────────────────────────────────
+            pt_sc  = model_final.predict(data["X_te"], verbose=0).flatten()
+            pt_inv = data["sc_y"].inverse_transform(pt_sc.reshape(-1, 1)).flatten()
+            yt_inv = data["sc_y"].inverse_transform(data["y_te"].reshape(-1, 1)).flatten()
+            y_true_s = pd.Series(yt_inv, index=data["idx_te"])
+            y_pred_s = pd.Series(pt_inv, index=data["idx_te"])
             metrics  = compute_metrics(y_true_s, y_pred_s)
             log.info(f"  ✓ TESTE → RMSE={metrics['RMSE']:.4f} R²={metrics['R2']:.4f}")
 
             # Previsão de validação para plot
-            pred_vl_final = model_final.predict(data["X_vl"], verbose=0).flatten()
-            pred_vl_inv2  = data["sc_y"].inverse_transform(
-                pred_vl_final.reshape(-1,1)).flatten()
-            idx_vl = data["idx_all"][(data["idx_all"] > pd.to_datetime(END_TRAIN)) &
-                                     (data["idx_all"] <= pd.to_datetime(END_VALIDATION))]
-            pred_vl_s = pd.Series(pred_vl_inv2[:len(idx_vl)], index=idx_vl)
+            pv2_sc  = model_final.predict(data["X_vl"], verbose=0).flatten()
+            pv2_inv = data["sc_y"].inverse_transform(pv2_sc.reshape(-1, 1)).flatten()
+            pred_vl_s = pd.Series(pv2_inv, index=data["idx_vl"])
 
+            nome_modelo = f"{nome}_{mode}"
             plot_forecast_3way(data["y_series"], pred_vl_s, y_pred_s,
-                               tid, nome, OUTPUT_DL)
-            plot_residuals(y_true_s, y_pred_s, tid, nome, OUTPUT_DL)
+                               tid, nome_modelo, OUTPUT_DL, suffix="")
+            plot_residuals(y_true_s, y_pred_s, tid, nome_modelo, OUTPUT_DL)
 
             # Curva de loss
-            fig, ax = plt.subplots(figsize=(10,4))
-            ax.plot(history.history["loss"],     label="Treino",    color="#2563eb")
-            ax.plot(history.history["val_loss"], label="Validação", color="#f59e0b")
-            ax.set_title(f"{MAPA_PLOT.get(tid,tid)} — {nome}: Loss (MSE)")
-            ax.set_xlabel("Época"); ax.legend(); plt.tight_layout()
-            plt.savefig(f"{OUTPUT_DL}/loss_{tid}_{nome}.svg",
+            fig, ax = plt.subplots(figsize=(10, 4))
+            ax.plot(history.history["loss"],     label="Training",  color="#2563eb")
+            ax.plot(history.history["val_loss"], label="Validation", color="#f59e0b")
+            ax.set_title(f"{MAPA_PLOT.get(tid,tid)} — {nome_modelo}: Training Loss (MSE)")
+            ax.set_xlabel("Epoch"); ax.legend(); plt.tight_layout()
+            plt.savefig(f"{OUTPUT_DL}/loss_{tid}_{nome_modelo}.svg",
                         dpi=150, bbox_inches="tight"); plt.close()
 
-            # ── Previsão futura recursiva ──────────────────────────────────
+            # ── Previsão futura ───────────────────────────────────────────
             try:
-                from config import FUTURE_END_DATE
                 future_idx = pd.date_range(
-                    data["y_series"].index[-1]+pd.Timedelta(days=1),
+                    data["y_series"].index[-1] + pd.Timedelta(days=1),
                     pd.to_datetime(FUTURE_END_DATE), freq="D"
                 )
-                # Features exógenas futuras (calendário determinístico)
-                cal_fut = adicionar_features_calendario(
-                    pd.Series(np.nan, index=future_idx))
-                # Clima futuro: média histórica (documentar no artigo)
-                if weather is not None:
-                    clim_mean = weather.mean()
-                    for col in clim_mean.index:
-                        if col in data["feat_cols"]:
-                            cal_fut[col] = clim_mean[col]
-                feat_fut_cols = [c for c in data["feat_cols"] if c in cal_fut.columns]
+                # Features exógenas futuras (determinísticas)
+                fut_exog_sc = None
+                if mode == "MV" and data["sc_exog"] is not None:
+                    cal_fut = adicionar_features_calendario(
+                        pd.Series(np.nan, index=future_idx))
+                    if weather is not None:
+                        for col in [c for c in data["sel_features"]
+                                    if c not in cal_fut.columns and c in weather.columns]:
+                            cal_fut[col] = weather[col].mean()
+                    sel_fut = [c for c in data["sel_features"] if c in cal_fut.columns]
+                    fut_raw = cal_fut[sel_fut].values.astype(np.float32)
+                    # Pad/trim para n_exog correto
+                    n_exog = data["n_feat"] - 1
+                    if fut_raw.shape[1] < n_exog:
+                        pad = np.zeros((len(future_idx), n_exog - fut_raw.shape[1]),
+                                       dtype=np.float32)
+                        fut_raw = np.hstack([fut_raw, pad])
+                    fut_exog_sc = data["sc_exog"].transform(fut_raw[:, :n_exog])
 
-                # Normalizar com sc_X já fitado no treino (salvo em preparar_dados_dl)
-                # CORREÇÃO: X_all é 3D (janelas), não pode ser usado para refit do scaler.
-                # sc_X foi fitado apenas no treino — reutilizamos diretamente.
-                sc_X_ref = data.get("sc_X")
-                if sc_X_ref is None:
-                    # fallback: recriar fitando nos primeiros dados (apenas treino)
-                    from sklearn.preprocessing import MinMaxScaler
-                    n_tr = sum(data["idx_all"] <= pd.to_datetime(END_TRAIN))
-                    # X_all[0] tem shape (lookback, n_feat); pegar o último timestep de cada janela
-                    X2d = data["X_all"][:n_tr, -1, :]   # (n_tr, n_feat)
-                    sc_X_ref = MinMaxScaler().fit(X2d)
-
-                fut_raw = np.zeros((len(future_idx), data["n_feat"]))
-                for i, col in enumerate(feat_fut_cols[:data["n_feat"]]):
-                    if col in cal_fut.columns:
-                        fut_raw[:, i] = cal_fut[col].values[:len(future_idx)]
-                fut_sc = sc_X_ref.transform(fut_raw)
-
-                last_win = data["X_all"][-1]   # última janela real (lookback, n_feat)
-
-                # Retreinar modelo final em TODOS os dados
+                # Retreinar em todos os dados
                 model_fut = build_fn(data["n_feat"], **best_params)
                 model_fut.fit(data["X_all"], data["y_all"],
                               epochs=DL_EPOCHS, batch_size=DL_BATCH_SIZE,
                               callbacks=get_callbacks(), verbose=0)
 
                 preds_fut = recursive_predict_dl(
-                    model_fut, last_win, fut_sc, data["sc_y"], len(future_idx)
+                    model_fut, data["X_all"][-1], fut_exog_sc,
+                    data["sc_y"], len(future_idx)
                 )
                 fut_series = pd.Series(preds_fut, index=future_idx)
 
-                # Bootstrap residual
-                all_pred  = model_fut.predict(data["X_all"], verbose=0).flatten()
                 all_pred_inv = data["sc_y"].inverse_transform(
-                    all_pred.reshape(-1,1)).flatten()
-                all_y_inv    = data["sc_y"].inverse_transform(
-                    data["y_all"].reshape(-1,1)).flatten()
-                resids   = all_y_inv - all_pred_inv
-                rng      = np.random.default_rng(RANDOM_STATE)
-                boots    = [preds_fut + rng.choice(resids, size=len(future_idx), replace=True)
-                            for _ in range(200)]
-                boots    = np.array(boots)
-
+                    model_fut.predict(data["X_all"], verbose=0).reshape(-1, 1)).flatten()
+                all_y_inv = data["sc_y"].inverse_transform(
+                    data["y_all"].reshape(-1, 1)).flatten()
+                resids = all_y_inv - all_pred_inv
+                rng    = np.random.default_rng(RANDOM_STATE)
+                boots  = np.array([preds_fut + rng.choice(resids, size=len(future_idx),
+                                                           replace=True)
+                                   for _ in range(200)])
                 plot_future_forecast(
                     data["y_series"], fut_series,
-                    pd.Series(np.percentile(boots,2.5,axis=0), index=future_idx),
-                    pd.Series(np.percentile(boots,97.5,axis=0), index=future_idx),
-                    tid, nome, OUTPUT_FUTURE
+                    pd.Series(np.percentile(boots, 2.5,  axis=0), index=future_idx),
+                    pd.Series(np.percentile(boots, 97.5, axis=0), index=future_idx),
+                    tid, nome_modelo, OUTPUT_FUTURE
                 )
-                pd.DataFrame({
-                    "data": future_idx, "prev_mean": preds_fut,
-                    "ic_lower_95": np.percentile(boots,2.5,axis=0),
-                    "ic_upper_95": np.percentile(boots,97.5,axis=0),
-                }).to_csv(f"{OUTPUT_FUTURE}/futuro_{tid}_{nome}.csv", index=False)
             except Exception as e:
-                log.warning(f"  Previsão futura {nome} falhou: {e}")
+                log.warning(f"  Previsão futura {nome_modelo} falhou: {e}")
 
             resultados.append({
-                "transformador": tid, "nome_plot": MAPA_PLOT.get(tid,tid),
-                "modelo": nome, "abordagem": "DeepLearning",
-                "best_params": str(best_params), "MAE_val": round(best_mae,4),
-                **{k: round(v,4) for k,v in metrics.items()},
+                "transformador": tid, "nome_plot": MAPA_PLOT.get(tid, tid),
+                "modelo": nome, "abordagem": mode,
+                "features_sel": str(data["sel_features"]),
+                "n_features_sel": len(data["sel_features"]),
+                "best_params": str(best_params), "MAE_val": round(best_mae, 4),
+                **{k: round(v, 4) for k, v in metrics.items()},
             })
 
     return pd.DataFrame(resultados)
@@ -414,13 +424,25 @@ def treinar_dl(df: pd.DataFrame, weather=None) -> pd.DataFrame:
 def main():
     df = pd.read_csv(DATA_PATH, sep=";", encoding="latin-1")
     df = df[df["id"].isin(TRANSFORMADORES)].copy()
-    weather = None
-    try: weather = carregar_weather()
-    except Exception as e: log.warning(f"Clima: {e}")
 
-    res = treinar_dl(df, weather)
+    weather = None
+    try:
+        weather = carregar_weather()
+    except Exception as e:
+        log.warning(f"Clima: {e}")
+
+    log.info("=== DL UNIVARIADO ===")
+    res_uv = treinar_dl(df, weather=None, mode="UV")
+    res_uv.to_csv(f"{OUTPUT_DL}/metricas_DL_UV.csv", index=False)
+
+    log.info("=== DL MULTIVARIADO ===")
+    res_mv = treinar_dl(df, weather=weather, mode="MV")
+    res_mv.to_csv(f"{OUTPUT_DL}/metricas_DL_MV.csv", index=False)
+
+    res = pd.concat([res_uv, res_mv])
     res.to_csv(f"{OUTPUT_DL}/metricas_DL.csv", index=False)
-    print(res[["transformador","modelo","RMSE","MAE","sMAPE","R2"]].to_string(index=False))
+    print(res[["transformador", "modelo", "abordagem", "RMSE", "MAE", "sMAPE", "R2"]]
+          .sort_values(["transformador", "modelo", "abordagem"]).to_string(index=False))
 
 
 if __name__ == "__main__":
